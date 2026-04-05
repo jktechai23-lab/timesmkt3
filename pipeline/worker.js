@@ -376,6 +376,9 @@ const worker = new Worker(
     log(job.data.output_dir, agentName, `Starting ${agentName}...`);
 
     const result = await handler(job);
+    if (result?.status === 'failed') {
+      throw new Error(result.reason || `${agentName} failed`);
+    }
     await job.updateProgress(100);
 
     log(job.data.output_dir, agentName, `Completed successfully.`);
