@@ -29,7 +29,7 @@ const {
 const { startContinuousMonitor } = require('./bot-monitor');
 const { createBotRuntime } = require('./bot-runtime');
 const { registerStatusCommand } = require('./bot-status');
-const { registerRerunCommands } = require('./bot-rerun');
+const { registerRerunCommands, normalizeProjectFolder } = require('./bot-rerun');
 const { createPendingTextHandlers } = require('./bot-text-pending');
 const {
   createCampaignOutputHandlers,
@@ -128,7 +128,7 @@ function listProjectCampaignFolders(projectDir, { includeArchived = false } = {}
     .reverse();
 }
 
-function parseBatchImageSource(raw) {
+function parseBatchImageSource(raw, projectDir) {
   const input = String(raw || 'brand').trim();
   const solidMatch = input.match(/^(solido|solid)(?:\s+(.+))?$/i);
   if (solidMatch) {
@@ -143,7 +143,15 @@ function parseBatchImageSource(raw) {
   if (folderMatch) {
     return {
       image_source: 'folder',
-      image_folder: folderMatch[2].trim(),
+      image_folder: normalizeProjectFolder(projectDir, folderMatch[2].trim()),
+      image_background_color: null,
+    };
+  }
+
+  if (input.includes('/') || input.includes('\\')) {
+    return {
+      image_source: 'folder',
+      image_folder: normalizeProjectFolder(projectDir, input),
       image_background_color: null,
     };
   }
@@ -170,6 +178,21 @@ function parseExplicitCampaigns(raw) {
     .split(/[,\s]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function resolveBatchDir(projectDir, batchId) {
+  const safeBatchId = String(batchId || '').trim();
+  if (!safeBatchId) return null;
+
+  const candidates = [
+    path.join(PROJECT_ROOT, projectDir, 'imports', safeBatchId),
+    path.join(PROJECT_ROOT, projectDir, 'outputs', 'imports', safeBatchId),
+  ];
+
+  return candidates.find((candidate) => (
+    fs.existsSync(path.join(candidate, 'manifest.json'))
+    || fs.existsSync(path.join(candidate, '.state.json'))
+  )) || null;
 }
 
 // ── Auth middleware ──────────────────────────────────────────────────────────
@@ -225,6 +248,7 @@ bot.command('help', async (ctx) => {
     `/campanha &lt;nome&gt; [opcoes] — pipeline completo\n` +
     `/lote — ajuda de lotes\n` +
     `/lotequick &lt;ativos|todos|campanhas ...&gt; [qtd] fonte ... [modo ...] — batch quick\n` +
+    `/lotecontinue &lt;batch_id&gt; — retomar lote do erro\n` +
     `/rerun &lt;campanha&gt; &lt;etapas&gt; — reprocessar\n` +
     `/continue &lt;campanha&gt; — continuar de onde parou\n` +
     `/cancel — cancelar pipeline ativo\n` +
@@ -691,7 +715,7 @@ bot.command('lotequick', async (ctx) => {
     return ctx.reply(`Nenhuma campanha ${label} encontrada em <code>${s.projectDir}</code>.`, { parse_mode: 'HTML' });
   }
 
-  const imageConfig = parseBatchImageSource(sourceSpec);
+  const imageConfig = parseBatchImageSource(sourceSpec, s.projectDir);
   const sourceLabel = imageConfig.image_source === 'solid'
     ? `sólido ${imageConfig.image_background_color}`
     : imageConfig.image_source === 'folder'
@@ -726,11 +750,85 @@ bot.command('lotequick', async (ctx) => {
   );
 });
 
+bot.command('lotecontinue', async (ctx) => {
+  const batchId = ctx.match?.trim();
+  if (!batchId) {
+    return ctx.reply(
+      '<b>/lotecontinue — Retomar lote</b>\n\n'
+      + 'Uso: <code>/lotecontinue &lt;batch_id&gt;</code>\n\n'
+      + 'Exemplo:\n'
+      + '<code>/lotecontinue tg_lotequick_1775305296801_4d0556</code>',
+      { parse_mode: 'HTML' },
+    );
+  }
+
+  const chatId = String(ctx.chat.id);
+  const s = session.get(chatId);
+  const batchDir = resolveBatchDir(s.projectDir, batchId);
+
+  if (!batchDir) {
+    return ctx.reply(
+      `Lote nao encontrado em <code>${s.projectDir}</code>: <code>${escapeHtml(batchId)}</code>`,
+      { parse_mode: 'HTML' },
+    );
+  }
+
+  await ctx.reply(
+    `<b>Retomando lote</b>\n\n`
+    + `Projeto: <code>${s.projectDir}</code>\n`
+    + `Batch: <code>${escapeHtml(batchId)}</code>\n`
+    + `Pasta: <code>${escapeHtml(path.relative(PROJECT_ROOT, batchDir).replace(/\\/g, '/'))}</code>`,
+    { parse_mode: 'HTML' },
+  );
+
+  try {
+    const result = await scanBatch(batchDir, {
+      keepGoing: true,
+      onProgress: async ({ status, campaign_id, index, total, error }) => {
+        if (status === 'starting') {
+          await ctx.reply(`Lote ${escapeHtml(batchId)}: iniciando <code>${escapeHtml(campaign_id)}</code> (${index}/${total})`, { parse_mode: 'HTML' });
+          return;
+        }
+        if (status === 'done') {
+          await ctx.reply(`Lote ${escapeHtml(batchId)}: concluida <code>${escapeHtml(campaign_id)}</code> (${index}/${total})`, { parse_mode: 'HTML' });
+          return;
+        }
+        if (status === 'failed') {
+          await ctx.reply(
+            `Lote ${escapeHtml(batchId)}: falha em <code>${escapeHtml(campaign_id)}</code> (${index}/${total})\n<code>${escapeHtml(error || 'erro desconhecido')}</code>`,
+            { parse_mode: 'HTML' },
+          );
+        }
+      },
+    });
+
+    const okCount = result.detalhes.filter((item) => item.ok).length;
+    const failCount = result.detalhes.length - okCount;
+    await ctx.reply(
+      `<b>Lote retomado</b>\n\n`
+      + `Batch: <code>${escapeHtml(batchId)}</code>\n`
+      + `Processados nesta retomada: <b>${okCount}</b>\n`
+      + `Falhas nesta retomada: <b>${failCount}</b>\n`
+      + `Total do lote: <b>${result.total}</b>\n`
+      + `Restantes: <b>${result.restantes}</b>`,
+      { parse_mode: 'HTML' },
+    );
+  } catch (err) {
+    await ctx.reply(
+      `<b>Falha ao retomar lote</b>\n\n`
+      + `Batch: <code>${escapeHtml(batchId)}</code>\n`
+      + `Erro: <code>${escapeHtml(err.message || String(err))}</code>`,
+      { parse_mode: 'HTML' },
+    );
+  }
+});
+
 bot.command('lote', async (ctx) => {
   await ctx.reply(
     '<b>Lotes</b>\n\n'
     + 'Comandos disponíveis:\n'
     + '<code>/lotequick &lt;ativos|todos|campanhas ...&gt; [qtd] fonte &lt;tipo&gt; [modo &lt;enxuto|normal&gt;]</code>\n\n'
+    + '<code>/lotecontinue &lt;batch_id&gt;</code>\n\n'
     + 'Escopos:\n'
     + '• <b>ativos</b> — só campanhas não arquivadas\n'
     + '• <b>todos</b> — inclui arquivadas\n\n'
@@ -749,7 +847,8 @@ bot.command('lote', async (ctx) => {
     + '<code>/lotequick todos 5 fonte brand modo normal</code>\n'
     + '<code>/lotequick campanhas c1,c2,c3 fonte solido #0D0D0D modo enxuto</code>\n'
     + '<code>/lotequick c1,c2,c3 fonte brand modo normal</code>\n'
-    + '<code>/lotequick ativos fonte pasta prj/inema/imgs/lote_abril modo normal</code>',
+    + '<code>/lotequick ativos fonte pasta prj/inema/imgs/lote_abril modo normal</code>\n'
+    + '<code>/lotecontinue tg_lotequick_1775305296801_4d0556</code>',
     { parse_mode: 'HTML' },
   );
 });

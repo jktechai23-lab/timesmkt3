@@ -12,8 +12,10 @@ test('normalizeTargets expands combined aliases', () => {
   assert.deepEqual(normalizeTargets('quickj'), ['video_quick']);
 });
 
-test('shouldPrepareAdsForQuickVideo only forces ad designer for solid quick videos', () => {
+test('shouldPrepareAdsForQuickVideo forces ad designer for quick videos with non-brand sources', () => {
   assert.equal(shouldPrepareAdsForQuickVideo({ targets: ['video_quick'], image_source: 'solid' }), true);
+  assert.equal(shouldPrepareAdsForQuickVideo({ targets: ['video_quick'], image_source: 'folder' }), true);
+  assert.equal(shouldPrepareAdsForQuickVideo({ targets: ['video_quick'], image_source: 'api' }), true);
   assert.equal(shouldPrepareAdsForQuickVideo({ targets: ['video_quick'], image_source: 'brand' }), false);
   assert.equal(shouldPrepareAdsForQuickVideo({ targets: ['video_pro'], image_source: 'solid' }), false);
   assert.equal(shouldPrepareAdsForQuickVideo({ targets: ['ads'], image_source: 'solid' }), false);
