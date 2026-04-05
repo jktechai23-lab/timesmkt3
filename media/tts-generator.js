@@ -55,24 +55,37 @@ async function generateElevenLabs(text, outputPath, options = {}) {
 
 async function generateMiniMax(text, outputPath, options = {}) {
   const apiKey = getEnvVar('MINIMAX_API_KEY');
-  const groupId = getEnvVar('MINIMAX_GROUP_ID');
-  if (!apiKey || !groupId) throw new Error('MINIMAX_API_KEY or MINIMAX_GROUP_ID not configured');
+  if (!apiKey) throw new Error('MINIMAX_API_KEY not configured');
 
   const voiceId = options.voiceId || 'female-shaonv'; // Female Chinese/Multilingual
   const speed = options.speed || 1.0;
+  const pitch = options.pitch || 0;
+  const volume = options.volume || 1;
+  const model = options.model || 'speech-2.8-turbo';
 
   const body = JSON.stringify({
     text,
-    model: 'speech-01',
+    model,
+    stream: false,
+    language_boost: 'Portuguese',
+    output_format: 'hex',
     voice_setting: {
       voice_id: voiceId,
       speed,
+      vol: volume,
+      pitch,
+    },
+    audio_setting: {
+      sample_rate: 32000,
+      bitrate: 128000,
+      format: 'mp3',
+      channel: 1,
     },
   });
 
   const response = await httpPost(
-    'api.minimax.chat',
-    `/v1/text_to_speech?GroupId=${groupId}`,
+    'api.minimax.io',
+    '/v1/t2a_v2',
     body,
     {
       'Authorization': `Bearer ${apiKey}`,
@@ -81,8 +94,8 @@ async function generateMiniMax(text, outputPath, options = {}) {
   );
 
   const data = JSON.parse(response);
-  if (data.audio_file) {
-    const audioBuffer = Buffer.from(data.audio_file, 'base64');
+  if (data?.data?.audio) {
+    const audioBuffer = Buffer.from(data.data.audio, 'hex');
     fs.writeFileSync(outputPath, audioBuffer);
     console.log(`  ✅ MiniMax TTS saved: ${outputPath}`);
     return { provider: 'minimax', chars: text.length, path: outputPath };

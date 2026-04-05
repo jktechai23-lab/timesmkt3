@@ -34,6 +34,7 @@ function buildPayload(taskName, opts, projectDir, today, env = process.env) {
     campaign_brief: opts.brief || '',
     video_mode: opts['video-pro'] ? 'pro' : 'quick',
     approval_modes: { stage1: 'auto', stage2: 'auto', stage3: 'auto', stage4: 'auto', stage5: 'auto' },
+    tts_provider: opts['tts-provider'] || 'auto',
   };
 }
 
@@ -55,6 +56,7 @@ function buildConfigTable(payload, title, env = process.env) {
     photo_quality: 'simples', scene_quality: 'simples',
     video_quick: true, video_pro: false, language: 'pt-BR',
     image_bg_mode: 'dark', notifications: true, approval: 'auto',
+    tts_provider: 'auto',
   };
 
   const vQuick = payload.video_quick !== false;
@@ -73,6 +75,7 @@ function buildConfigTable(payload, title, env = process.env) {
     { setting: 'Quick', current: vQuick ? 'sim' : 'nao', def: 'sim', opts: 'sim / sem quick' },
     { setting: 'Pro', current: vPro ? 'sim' : 'nao', def: 'nao', opts: 'pro' },
     { setting: 'Narrador', current: payload.narrator || 'rachel', def: DEFAULTS.narrator, opts: 'rachel / bella / domi / antoni / josh / arnold' },
+    { setting: 'TTS', current: payload.tts_provider || 'auto', def: DEFAULTS.tts_provider, opts: 'auto / elevenlabs / minimax / openai' },
     { setting: 'Duração', current: `${payload.video_duration || 60}s`, def: '60s', opts: '30 / 60' },
     { setting: 'Estilo', current: payload.style_preset || 'inema_hightech', def: DEFAULTS.style_preset, opts: 'inema_hightech / 01_hero_film / ...' },
     { setting: 'Dir.Foto', current: payload.photo_quality || 'simples', def: DEFAULTS.photo_quality, opts: 'simples / premium' },
@@ -183,6 +186,7 @@ Return a JSON object with these fields:
   },
   "notifications": true,
   "video_audio": "narration",
+  "tts_provider": "auto",
   "campaign_brief": "full campaign brief in pt-BR summarizing the intent, audience, tone, key messages"
 }
 
@@ -198,6 +202,7 @@ Rules:
 - approval_modes: each stage can be "humano" (user must approve), "agente" (AI reviewer decides), or "auto" (advance automatically). Default "auto" for all. Set to "humano" if user explicitly asks for approval before each stage. Set to "agente" if user says "aprovação por agente", "agente revisa".
 - notifications: false only if user explicitly says "sem notificações", "silencioso", "não notificar".
 - video_audio: "narration" if user wants voiceover/narração (default), "music" if user wants background music only, "both" if user wants narration + music, "none" for silent/no audio.
+- tts_provider: "auto" by default. Set to "elevenlabs", "minimax", or "openai" only if the user explicitly asks for that TTS provider.
 - campaign_brief: comprehensive summary of everything the user described
 - Return ONLY the JSON object, no markdown, no explanation`;
 

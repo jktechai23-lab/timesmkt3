@@ -5,6 +5,35 @@ const { captureScreenshots, extractUrlsFromFiles } = require('./capture-screensh
 const { getEnv, hasEnv } = require('../config/env');
 const { writeVideoApprovalTimeout } = require('../telegram/approval-utils');
 
+function normalizeTtsProvider(raw) {
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value || value === 'auto') return null;
+  if (value === 'openai-tts') return 'openai';
+  return value;
+}
+
+function hasConfiguredTtsProvider(provider) {
+  switch (normalizeTtsProvider(provider)) {
+    case 'elevenlabs':
+      return hasEnv('ELEVENLABS_API_KEY');
+    case 'minimax':
+      return hasEnv('MINIMAX_API_KEY') && hasEnv('MINIMAX_GROUP_ID');
+    case 'openai':
+      return hasEnv('OPENAI_API_KEY');
+    default:
+      return false;
+  }
+}
+
+function hasAnyTtsProvider() {
+  return ['elevenlabs', 'minimax', 'openai'].some((provider) => hasConfiguredTtsProvider(provider));
+}
+
+function canProduceNarration(ttsProvider) {
+  const selectedProvider = normalizeTtsProvider(ttsProvider);
+  return selectedProvider ? hasConfiguredTtsProvider(selectedProvider) : hasAnyTtsProvider();
+}
+
 function attachExistingQuickNarration(projectRoot, output_dir, task_name, idx, log = () => {}) {
   let planPath = path.resolve(projectRoot, output_dir, 'video', `${task_name}_video_${idx}_scene_plan.json`);
   if (!fs.existsSync(planPath)) planPath = path.resolve(projectRoot, output_dir, 'video', `video_${idx}_scene_plan.json`);
@@ -39,6 +68,7 @@ function ensureQuickNarration({
   task_name,
   idx,
   narrator,
+  ttsProvider,
   log = () => {},
   execFile = execFileSync,
 }) {
@@ -72,19 +102,25 @@ function ensureQuickNarration({
   if (!script) {
     return { ok: false, reason: 'missing_script', planPath };
   }
-  if (!hasEnv('ELEVENLABS_API_KEY')) {
-    return { ok: false, reason: 'missing_elevenlabs', planPath };
+  const selectedProvider = normalizeTtsProvider(ttsProvider);
+  if (selectedProvider && !hasConfiguredTtsProvider(selectedProvider)) {
+    return { ok: false, reason: `missing_tts_provider:${selectedProvider}`, planPath };
+  }
+  if (!selectedProvider && !hasAnyTtsProvider()) {
+    return { ok: false, reason: 'missing_tts_provider:auto', planPath };
   }
 
   const relAudioPath = `${output_dir}/audio/${task_name}_quick_${idx}_narration.mp3`;
   const absAudioPath = path.resolve(projectRoot, relAudioPath);
   try {
-    execFile('node', [
+    const args = [
       path.resolve(projectRoot, 'pipeline', 'generate-audio.js'),
       absAudioPath,
       script,
       narrator || 'rachel',
-    ], {
+    ];
+    if (selectedProvider) args.push('--provider', selectedProvider);
+    execFile('node', args, {
       cwd: projectRoot,
       stdio: 'pipe',
       timeout: 180000,
@@ -123,6 +159,7 @@ function createWorkerVideoHandlers({
       language, campaign_brief,
       video_count = 1,
       quick_mode = 'normal',
+      tts_provider = 'auto',
       video_audio = 'narration',
       existing_narration_file = null,
       image_source: rawImageSource = 'brand',
@@ -131,9 +168,14 @@ function createWorkerVideoHandlers({
     const quickModel = quick_mode === 'enxuto' ? 'haiku' : 'sonnet';
     const solidBackgroundColor = rawImageSource === 'solid' ? (image_background_color || '#0D0D0D') : null;
     const image_source = rawImageSource;
+    const selectedTtsProvider = normalizeTtsProvider(tts_provider);
+    const hasNarrationProvider = selectedTtsProvider
+      ? hasConfiguredTtsProvider(selectedTtsProvider)
+      : hasAnyTtsProvider();
+    const ttsProviderLabel = selectedTtsProvider || 'auto-fallback';
     const absVideoDir = path.resolve(projectRoot, output_dir, 'video');
     fs.mkdirSync(absVideoDir, { recursive: true });
-    log(output_dir, 'video_quick', `Quick mode: ${quick_mode} | Claude model: ${quickModel}`);
+    log(output_dir, 'video_quick', `Quick mode: ${quick_mode} | Claude model: ${quickModel} | TTS: ${ttsProviderLabel}`);
 
     if (job.data.skip_completed) {
       const videoDir = path.resolve(projectRoot, output_dir, 'video');
@@ -161,7 +203,6 @@ function createWorkerVideoHandlers({
       ? adImages.map(f => `  - ${f}`).join('\n')
       : '  (no images found in ads/)';
 
-    const hasElevenLabs = hasEnv('ELEVENLABS_API_KEY');
     const musicDirs = [
       path.resolve(projectRoot, project_dir, 'assets', 'music'),
       path.resolve(projectRoot, project_dir, 'assets', 'audio'),
@@ -178,17 +219,17 @@ function createWorkerVideoHandlers({
       }
     }
 
-    const audioInstructions = hasElevenLabs ? `
-NARRATION (optional — ElevenLabs available):
+    const audioInstructions = hasNarrationProvider ? `
+NARRATION (optional — TTS available via ${ttsProviderLabel}):
 - Read narrative.json → video_narration field
 - Write a SHORT narration script — MAXIMUM 15-20 SECONDS of speech (~40-50 words for pt-BR)
 - This is a QUICK video (10-20s total) — the narration must be brief, punchy, and fit within the video duration
 - Do NOT reuse the pro narration script (it's 60s) — write a NEW shorter script
-- Generate audio: node pipeline/generate-audio.js ${output_dir}/audio/${task_name}_quick_narration.mp3 "<short_script>" ${job.data.narrator || 'rachel'}
+- Generate audio: node pipeline/generate-audio.js ${output_dir}/audio/${task_name}_quick_narration.mp3 "<short_script>" ${job.data.narrator || 'rachel'}${selectedTtsProvider ? ` --provider ${selectedTtsProvider}` : ''}
 - IMPORTANT: Use the SAME voice as the pro video (${job.data.narrator || 'rachel'}) — consistency matters
 - Set "narration_file" in the scene plan to the generated path
 - The video_length MUST match the narration duration (10-20s)` : `
-NARRATION: ElevenLabs not configured. Generate silent video — text overlays only.`;
+NARRATION: no TTS provider configured. Generate silent video — text overlays only.`;
 
     const musicInstructions = musicFiles.length > 0 ? `
 BACKGROUND MUSIC (available):
@@ -299,6 +340,12 @@ After saving scene plans, print exactly: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
 
     log(output_dir, 'video_quick', 'Rendering video(s)...');
 
+    if (video_audio !== 'none' && !existing_narration_file && !canProduceNarration(tts_provider)) {
+      log(output_dir, 'video_quick', `Audio required but no TTS provider is available for stage 3 (provider=${ttsProviderLabel}).`);
+      process.stdout.write(`[STAGE3_AUDIO_REQUIRED] ${output_dir} quick provider=${ttsProviderLabel}\n`);
+      return { status: 'failed', reason: `audio required for quick video: ${ttsProviderLabel}` };
+    }
+
     for (let i = 1; i <= video_count; i++) {
       const idx = String(i).padStart(2, '0');
       const explicitNarration = existing_narration_file
@@ -318,13 +365,14 @@ After saving scene plans, print exactly: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
       const narrationStatus = video_audio === 'none'
         ? { ok: true, reason: 'silent_mode', planPath: explicitNarration ? planPath : null }
         : ensureQuickNarration({
-            projectRoot,
-            output_dir,
-            task_name,
-            idx,
-            narrator: job.data.narrator || 'rachel',
-            log,
-          });
+          projectRoot,
+          output_dir,
+          task_name,
+          idx,
+          narrator: job.data.narrator || 'rachel',
+          ttsProvider: tts_provider,
+          log,
+        });
       const effectivePlanPath = narrationStatus.planPath || planPath;
       if (!effectivePlanPath || !fs.existsSync(effectivePlanPath)) {
         log(output_dir, 'video_quick', `Scene plan not found: video_${idx}, skipping.`);
@@ -333,6 +381,7 @@ After saving scene plans, print exactly: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
 
       if (!narrationStatus.ok) {
         log(output_dir, 'video_quick', `Missing narration for video ${idx}; stopping quick render (${narrationStatus.reason}).`);
+        process.stdout.write(`[STAGE3_AUDIO_REQUIRED] ${output_dir} quick video_${idx} reason=${narrationStatus.reason}\n`);
         process.stdout.write(`[VIDEO_QUICK_AUDIO_MISSING] ${output_dir} video_${idx}\n`);
         return { status: 'failed', reason: `missing narration for quick video ${idx}: ${narrationStatus.reason}` };
       }

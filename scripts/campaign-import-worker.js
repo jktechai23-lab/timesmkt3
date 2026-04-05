@@ -77,7 +77,9 @@ function normalizeImageConfig(entry = {}, defaults = {}) {
 function shouldPrepareAdsForQuickVideo(item) {
   const targets = Array.isArray(item?.targets) ? item.targets : [];
   const wantsQuick = targets.includes('video_quick');
-  return wantsQuick && item?.image_source === 'solid';
+  if (!wantsQuick) return false;
+  const imageSource = String(item?.image_source || 'brand').trim().toLowerCase();
+  return imageSource !== 'brand';
 }
 
 function safeName(raw) {
@@ -121,6 +123,7 @@ function parseCampaignEntry(raw, defaults, projectDir, outputRoot) {
     narrator: entry.narrator ?? defaults.narrator ?? 'rachel',
     video_duration: Number(entry.video_duration ?? defaults.video_duration ?? 20),
     quick_mode: entry.quick_mode ?? defaults.quick_mode ?? 'normal',
+    tts_provider: entry.tts_provider ?? defaults.tts_provider ?? 'auto',
     platform_targets: Array.isArray(entry.platform_targets ?? defaults.platform_targets)
       ? (entry.platform_targets ?? defaults.platform_targets)
       : ['instagram'],
@@ -152,6 +155,7 @@ function parseManifest(batchDir) {
     narrator: manifest.defaults?.narrator ?? manifest.narrator ?? 'rachel',
     video_duration: Number(manifest.defaults?.video_duration ?? manifest.video_duration ?? 20),
     quick_mode: manifest.defaults?.quick_mode ?? manifest.quick_mode ?? 'normal',
+    tts_provider: manifest.defaults?.tts_provider ?? manifest.tts_provider ?? 'auto',
     platform_targets: manifest.defaults?.platform_targets ?? manifest.platform_targets ?? ['instagram'],
     style_preset: manifest.defaults?.style_preset ?? manifest.style_preset ?? 'inema_hightech',
     photo_quality: manifest.defaults?.photo_quality ?? manifest.photo_quality ?? 'simples',
@@ -406,6 +410,7 @@ function buildPayload(item, targetDir) {
     narrator: item.narrator,
     video_duration: item.video_duration,
     quick_mode: item.quick_mode,
+    tts_provider: item.tts_provider,
     video_quick: wantQuick,
     video_pro: wantPro,
     video_mode: wantQuick && wantPro ? 'both' : wantPro ? 'pro' : 'quick',
@@ -444,11 +449,12 @@ async function executeItem(batch, item, state) {
     // can consume the rendered PNGs from ads/ as its visual source.
     if (prepareAdsForQuickVideo && !wantsAds) {
       removeIfExists(path.join(targetDir, 'logs', 'ad_creative_designer.log'));
-      // Remove old carousel/story images so video_quick only uses the new solid ones
+      // Remove old generated ad artifacts so the batch does not reuse stale visuals
+      // while the new source-specific render is being prepared.
       const adsDir = path.join(targetDir, 'ads');
       if (fs.existsSync(adsDir)) {
         for (const f of fs.readdirSync(adsDir)) {
-          if (/\.(png|jpg|jpeg)$/i.test(f)) {
+          if (/\.(png|jpg|jpeg|html|json)$/i.test(f)) {
             removeIfExists(path.join(adsDir, f));
           }
         }

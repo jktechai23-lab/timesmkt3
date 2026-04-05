@@ -504,6 +504,12 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
       await replyAndRefresh(`✅ Narrador: <b>${s.pendingCampaign.narrator}</b>`);
       return true;
     }
+    if (/^(tts|voz|narrac(?:ao|ão))\s+(auto|elevenlabs|minimax|openai)$/i.test(lower)) {
+      const provider = lower.match(/^(?:tts|voz|narrac(?:ao|ão))\s+(auto|elevenlabs|minimax|openai)$/i)[1].trim();
+      s.pendingCampaign.tts_provider = provider === 'openai' ? 'openai' : provider;
+      await replyAndRefresh(`✅ Provider de TTS: <b>${s.pendingCampaign.tts_provider}</b>`);
+      return true;
+    }
     if (/^estilo\s+(.+)$/i.test(lower)) {
       s.pendingCampaign.style_preset = lower.match(/^estilo\s+(.+)$/i)[1].trim();
       await replyAndRefresh(`✅ Estilo visual: <b>${s.pendingCampaign.style_preset}</b>`);

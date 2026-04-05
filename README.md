@@ -206,6 +206,10 @@ O sistema escolhe automaticamente baseado nas API keys configuradas.
 | MiniMax | ~$0.01/1k chars | Alta |
 | **Piper (local)** | Gratis | Boa |
 
+MiniMax:
+- `MINIMAX_API_KEY` e `MINIMAX_GROUP_ID`
+- obter em: `https://platform.minimax.io/user-center/basic-information`
+
 #### Vozes ElevenLabs (default: rachel)
 
 | Voz | Estilo | Uso recomendado |

@@ -318,6 +318,28 @@ Be concise and helpful. You have full access to the codebase.`;
           }
         }
 
+        if (text.includes('[STAGE3_AUDIO_REQUIRED]')) {
+          const match = text.match(/\[STAGE3_AUDIO_REQUIRED\]\s*(\S+)\s+(\S+)(?:\s+reason=(.+))?/);
+          if (match) {
+            bot.api.sendMessage(
+              chatId,
+              `⚠️ <b>Etapa 3 bloqueada</b>\nÁudio é obrigatório para <code>${match[2]}</code>.\nSe quiser seguir sem áudio, peça explicitamente <code>video_audio none</code>.\nMotivo: <code>${match[3] || 'sem provider ou sem narração disponível'}</code>`,
+              { parse_mode: 'HTML' },
+            ).catch(() => {});
+          }
+        }
+
+        if (text.includes('[STAGE3_VIDEO_PLAN_INVALID]')) {
+          const match = text.match(/\[STAGE3_VIDEO_PLAN_INVALID\]\s*(\S+)\s+(.+)/);
+          if (match) {
+            bot.api.sendMessage(
+              chatId,
+              `⚠️ <b>Etapa 3 bloqueada</b>\nO plano de vídeo veio inválido.\nMotivo: <code>${match[2]}</code>`,
+              { parse_mode: 'HTML' },
+            ).catch(() => {});
+          }
+        }
+
         if (text.includes('[STAGE3_DRAFT_READY]')) {
           const match = text.match(/\[STAGE3_DRAFT_READY\]\s*\S+\s+(\S+)/);
           if (match && fs.existsSync(match[1])) {

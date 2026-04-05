@@ -5,6 +5,50 @@ const { captureScreenshots, extractUrlsFromFiles } = require('./capture-screensh
 const { getEnv, hasEnv } = require('../config/env');
 const { writeVideoApprovalTimeout } = require('../telegram/approval-utils');
 
+function normalizeTtsProvider(raw) {
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value || value === 'auto') return null;
+  if (value === 'openai-tts') return 'openai';
+  return value;
+}
+
+function hasConfiguredTtsProvider(provider) {
+  switch (normalizeTtsProvider(provider)) {
+    case 'elevenlabs':
+      return hasEnv('ELEVENLABS_API_KEY');
+    case 'minimax':
+      return hasEnv('MINIMAX_API_KEY') && hasEnv('MINIMAX_GROUP_ID');
+    case 'openai':
+      return hasEnv('OPENAI_API_KEY');
+    default:
+      return false;
+  }
+}
+
+function hasAnyTtsProvider() {
+  return ['elevenlabs', 'minimax', 'openai'].some((provider) => hasConfiguredTtsProvider(provider));
+}
+
+function shouldAllowEmptyOverlay(scene, plan, index) {
+  const narration = String(scene?.narration || '').trim();
+  const totalScenes = Array.isArray(plan?.scenes) ? plan.scenes.length : 0;
+  const isLastScene = totalScenes > 0 && index === totalScenes - 1;
+  const isSilentClosing = isLastScene && !narration;
+  return isSilentClosing || Number(scene?.duration || 0) < 0.8;
+}
+
+function inferRequestedFormats(platformTargets = [], explicitFormats = []) {
+  const rawExplicit = Array.isArray(explicitFormats) ? explicitFormats.map((item) => String(item || '').trim()).filter(Boolean) : [];
+  if (rawExplicit.length > 0) return rawExplicit;
+
+  const targets = Array.isArray(platformTargets) ? platformTargets.map((item) => String(item || '').toLowerCase()) : [];
+  const hasExplicitWide = targets.some((target) => ['youtube_feed', 'youtube_wide', 'widescreen', 'landscape', '16:9'].includes(target));
+  const hasExplicitSquare = targets.some((target) => ['instagram_feed_square', 'feed_square', 'square', '1:1'].includes(target));
+  if (hasExplicitWide) return ['16:9'];
+  if (hasExplicitSquare) return ['1:1'];
+  return ['9:16'];
+}
+
 function createWorkerVideoProHandler({
   projectRoot,
   imageProviderName,
@@ -31,10 +75,18 @@ function createWorkerVideoProHandler({
       task_name, task_date, output_dir, project_dir, platform_targets,
       language, campaign_brief,
       video_count = 1, video_briefs = [],
+      tts_provider = 'auto',
+      video_formats = [],
       image_source: rawImageSource = 'brand',
       image_folder = null,
       image_background_color = null,
     } = job.data;
+    const selectedTtsProvider = normalizeTtsProvider(tts_provider);
+    const hasNarrationProvider = selectedTtsProvider
+      ? hasConfiguredTtsProvider(selectedTtsProvider)
+      : hasAnyTtsProvider();
+    const ttsProviderLabel = selectedTtsProvider || 'auto-fallback';
+    const requestedFormats = inferRequestedFormats(platform_targets, video_formats);
     const { source: image_source, folder: imageFolder, color: solidBackgroundColor } = resolveImageSource(
       rawImageSource,
       image_folder,
@@ -173,7 +225,6 @@ function createWorkerVideoProHandler({
       ? `\nCampaign Brief: ${campaign_brief}`
       : '';
 
-    const hasElevenLabs = hasEnv('ELEVENLABS_API_KEY');
     const videoBriefsText = video_briefs.length > 0
       ? video_briefs.map((b, i) => `  ${i + 1}. ${b}`).join('\n')
       : Array.from({ length: video_count }, (_, i) =>
@@ -226,14 +277,14 @@ ${musicFiles.map(f => `  - ${f}`).join('\n')}
 BACKGROUND MUSIC: No music files found. Set "music": null in the scene plan.
 `;
 
-    const audioInstructions = hasElevenLabs ? `
-AUDIO NARRATION (ElevenLabs available):
+    const audioInstructions = hasNarrationProvider ? `
+AUDIO NARRATION (${ttsProviderLabel} available):
 - Write a narration script (${Math.round((job.data.video_duration || 60) * 0.85)}-${Math.round((job.data.video_duration || 60) * 0.95)} seconds of natural speech for ${job.data.video_duration || 60}s video)
-- Generate narration: node pipeline/generate-audio.js <output.mp3> "<script>" [rachel|bella|domi|antoni|josh|arnold]
+- Generate narration: node pipeline/generate-audio.js <output.mp3> "<script>" [rachel|bella|domi|antoni|josh|arnold]${selectedTtsProvider ? ` --provider ${selectedTtsProvider}` : ''}
 - Save as: ${output_dir}/audio/${task_name}_video_0N_narration.mp3
 - Recommended voices: rachel (warm/emotional), bella (clear/friendly), domi (confident), antoni (professional), josh (deep/warm), arnold (bold/energetic)
 ${musicInstructions}` : `
-AUDIO: ElevenLabs not configured. Generate silent videos. Narration scripts only.
+AUDIO: no TTS provider configured. Generate silent videos. Narration scripts only.
 ${musicInstructions}`;
 
     const providerNameEditor = job.data.image_provider || imageProviderName;
@@ -342,7 +393,13 @@ REUSE STRATEGY (with ${brandAssets.length} images for 30-50 cuts):
       if (fs.existsSync(narPath)) { narrationExists = true; break; }
     }
 
-    if (!narrationExists && hasElevenLabs) {
+    if ((job.data.video_audio || 'narration') !== 'none' && !narrationExists && !hasNarrationProvider) {
+      log(output_dir, 'video_pro', `Audio required but no TTS provider is available for stage 3 (provider=${ttsProviderLabel}).`);
+      process.stdout.write(`[STAGE3_AUDIO_REQUIRED] ${output_dir} pro provider=${ttsProviderLabel}\n`);
+      return { status: 'failed', reason: `audio required for video_pro: ${ttsProviderLabel}` };
+    }
+
+    if (!narrationExists && hasNarrationProvider) {
       log(output_dir, 'video_pro', 'Phase 1: Generating narration (Sonnet)...');
       const narrationPrompt = `You are a professional copywriter creating narration for a video ad.
 
@@ -353,9 +410,10 @@ ${langInstruction}${briefInstruction}
 
 For each of the ${video_count} video(s), write a narration script.
 Target duration: ${job.data.video_duration || 60} seconds (${Math.round((job.data.video_duration || 60) * 2.5)} words for pt-BR at ~2.5 words/sec).
-Then generate the audio using: node pipeline/generate-audio.js <output.mp3> "<script>" ${job.data.narrator || 'rachel'}
+Then generate the audio using: node pipeline/generate-audio.js <output.mp3> "<script>" ${job.data.narrator || 'rachel'}${selectedTtsProvider ? ` --provider ${selectedTtsProvider}` : ''}
 Save narration to: ${output_dir}/audio/${task_name}_video_0N_narration.mp3
 Voice: ${job.data.narrator || 'rachel'} — use this EXACT voice (must match quick video for consistency)
+Preferred TTS provider: ${ttsProviderLabel}
 
 IMPORTANT: ONLY generate narration audio files. Do NOT create scene plans or any other files.
 After generating all narrations, print: [NARRATION_DONE]`;
@@ -533,7 +591,7 @@ ${imageListForPhoto}
 STEP 4 — Create the photography plan following SKILL.md exactly.
 Save to: ${output_dir}/video/photography_plan.json
 
-The plan must define: style_preset, formats (based on platforms), color_palette, typography, sections with mood/framing/motion, and individual shots covering 100% of the narration timing.
+The plan must define: style_preset, formats, color_palette, typography, sections with mood/framing/motion, and individual shots covering 100% of the narration timing.
 
 For EACH shot, you MUST specify:
 - Which specific image file to use (full path)
@@ -585,7 +643,7 @@ ${imageListForPhoto}
 
 ═══ PHOTOGRAPHY PLAN RULES ═══
 1. Choose 1 of 12 style presets: neon_futurista, warm_lifestyle, corporate_clean, bold_pop, minimal_zen, dark_cinematic, pastel_soft, retro_vintage, nature_organic, urban_street, luxury_gold, editorial_documentary
-2. Define formats based on platforms (9:16 for Reels/TikTok/Shorts, 1:1 for Feed, 16:9 for YouTube)
+2. Default format is 9:16. Only use 1:1 or 16:9 if explicitly requested in the payload/platform plan.
 3. For each shot define: framing (extreme-close-up/close-up/medium-shot/wide-shot/detail-shot/overhead), motion (push-in/pull-out/pan-right/drift/ken-burns-in/zoom-in/breathe/parallax-zoom), mood, image file, text_overlay (max 6 words)
 4. Classify each image: "clean" (no text) or "has_text" (has text/logo) or "unsuitable"
 5. image_has_text:true → text_overlay:null. NEVER text on images with embedded text
@@ -627,7 +685,7 @@ Output ONLY the JSON file. Do NOT create scene plans or render anything.`;
         photographyNote = `
 PHOTOGRAPHY PLAN (from Photography Director — FOLLOW THESE DECISIONS):
 Style: ${photoPlan.style_preset || 'not set'}
-Formats: ${(photoPlan.formats || ['9:16']).join(', ')}
+Formats: ${requestedFormats.join(', ')}
 Colors: ${JSON.stringify(photoPlan.color_palette || {})}
 Typography: headline=${photoPlan.typography?.headline_font || 'Montserrat'}, body=${photoPlan.typography?.body_font || 'Inter'}
 
@@ -855,6 +913,19 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
     const sceneTimeout = sceneQuality === 'premium' ? 900000 : 600000;
     await runClaude(scenePlanPrompt, 'video_pro', output_dir, sceneTimeout, { model: sceneModel });
     await job.extendLock(job.token, 900000).catch(() => {});
+
+    const missingPlans = [];
+    for (let i = 1; i <= video_count; i++) {
+      const idx = String(i).padStart(2, '0');
+      const planPath = vfFind(idx, '_scene_plan_motion.json');
+      if (!fs.existsSync(planPath)) missingPlans.push(idx);
+    }
+    if (missingPlans.length > 0) {
+      const message = `missing motion plans for videos: ${missingPlans.join(', ')}`;
+      log(output_dir, 'video_pro', `Validation failed: ${message}`);
+      process.stdout.write(`[STAGE3_VIDEO_PLAN_INVALID] ${output_dir} ${message}\n`);
+      return { status: 'failed', reason: message };
+    }
 
     if (image_source === 'solid') {
       for (let i = 1; i <= video_count; i++) {
@@ -1252,6 +1323,23 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
           log(output_dir, 'video_pro', `Typography: fixed ${typoFixes} violations in video ${idx}`);
         } else {
           log(output_dir, 'video_pro', `Typography: all checks passed for video ${idx}`);
+        }
+
+        const emptyOverlayViolations = [];
+        for (let s = 0; s < plan.scenes.length; s++) {
+          const scene = plan.scenes[s];
+          const overlay = String(scene?.text_overlay || '').trim();
+          if (scene?.image_has_text === true) continue;
+          if (shouldAllowEmptyOverlay(scene, plan, s)) continue;
+          if (!overlay) {
+            emptyOverlayViolations.push(scene.id || `scene_${s + 1}`);
+          }
+        }
+        if (emptyOverlayViolations.length > 0) {
+          const message = `empty text_overlay in video ${idx}: ${emptyOverlayViolations.join(', ')}`;
+          log(output_dir, 'video_pro', `Validation failed: ${message}`);
+          process.stdout.write(`[STAGE3_VIDEO_PLAN_INVALID] ${output_dir} ${message}\n`);
+          return { status: 'failed', reason: message };
         }
       } catch (e) {
         log(output_dir, 'video_pro', `Typography validation error: ${e.message}`);

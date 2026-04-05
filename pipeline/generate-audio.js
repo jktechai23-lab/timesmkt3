@@ -1,102 +1,139 @@
 /**
- * ElevenLabs TTS Audio Generator
- *
- * Generates narration audio from a script using the ElevenLabs API.
+ * Multi-provider TTS audio generator for pipeline narration.
  *
  * Usage:
- *   node pipeline/generate-audio.js <output_mp3> <text> [voice_id]
- *
- * Available voices (multilingual v2 — works with pt-BR):
- *   rachel  — warm, emotional female   — 21m00Tcm4TlvDq8ikWAM (default)
- *   bella   — friendly, clear female   — EXAVITQu4vr4xnSDxMaL
- *   domi    — strong, confident female — AZnzlk1XvdvUeBnXmlld
- *   antoni  — professional male        — ErXwobaYiN019PkySvjV
- *   josh    — deep, warm male          — TxGEqnHWrfWFTfGW9XjX
- *   arnold  — bold, energetic male     — VR6AewLTigWG4xSOukaG
- *
- * Defaults to Rachel if no voice_id is specified.
+ *   node pipeline/generate-audio.js <output_mp3> <text> [voice_id_or_name] [--provider <auto|elevenlabs|minimax|openai>]
  */
 
-const https = require('https');
-const fs = require('fs');
-const path = require('path');
+const { generateSpeech } = require('../media/tts-generator');
 const { getEnv } = require('../config/env');
 
-const API_KEY = getEnv('ELEVENLABS_API_KEY', '');
-const DEFAULT_VOICE = '21m00Tcm4TlvDq8ikWAM'; // Rachel
-
-const VOICES = {
-  rachel: '21m00Tcm4TlvDq8ikWAM',   // warm, emotional female (default)
-  bella: 'EXAVITQu4vr4xnSDxMaL',     // friendly, clear female
-  antoni: 'ErXwobaYiN019PkySvjV',     // professional male
-  domi: 'AZnzlk1XvdvUeBnXmlld',      // strong, confident female
-  josh: 'TxGEqnHWrfWFTfGW9XjX',      // deep, warm male
-  arnold: 'VR6AewLTigWG4xSOukaG',    // bold, energetic male
+const DEFAULT_VOICE = 'rachel';
+const ELEVENLABS_VOICES = {
+  rachel: '21m00Tcm4TlvDq8ikWAM',
+  bella: 'EXAVITQu4vr4xnSDxMaL',
+  antoni: 'ErXwobaYiN019PkySvjV',
+  domi: 'AZnzlk1XvdvUeBnXmlld',
+  josh: 'TxGEqnHWrfWFTfGW9XjX',
+  arnold: 'VR6AewLTigWG4xSOukaG',
 };
 
-async function generateAudio(outputPath, text, voiceIdOrName = DEFAULT_VOICE) {
-  if (!API_KEY) {
-    throw new Error('ELEVENLABS_API_KEY not set in .env');
-  }
+const OPENAI_VOICE_MAP = {
+  rachel: 'nova',
+  bella: 'nova',
+  domi: 'shimmer',
+  antoni: 'onyx',
+  josh: 'onyx',
+  arnold: 'echo',
+};
 
-  const voiceId = VOICES[voiceIdOrName?.toLowerCase()] || voiceIdOrName || DEFAULT_VOICE;
+const MINIMAX_VOICE_MAP = {
+  rachel: 'female-shaonv',
+  bella: 'female-shaonv',
+  domi: 'female-shaonv',
+  antoni: 'male-qn-qingse',
+  josh: 'male-qn-qingse',
+  arnold: 'male-qn-qingse',
+};
 
-  const body = JSON.stringify({
-    text,
-    model_id: 'eleven_multilingual_v2',
-    voice_settings: {
-      stability: 0.5,
-      similarity_boost: 0.8,
-      style: 0.3,
-      use_speaker_boost: true,
-    },
-  });
+const DEFAULT_PROVIDER_ORDER = ['elevenlabs', 'minimax', 'openai-tts'];
 
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'api.elevenlabs.io',
-      path: `/v1/text-to-speech/${voiceId}`,
-      method: 'POST',
-      headers: {
-        'xi-api-key': API_KEY,
-        'Content-Type': 'application/json',
-        'Accept': 'audio/mpeg',
-        'Content-Length': Buffer.byteLength(body),
-      },
-    };
-
-    const req = https.request(options, (res) => {
-      if (res.statusCode !== 200) {
-        let errData = '';
-        res.on('data', d => { errData += d; });
-        res.on('end', () => reject(new Error(`ElevenLabs API error ${res.statusCode}: ${errData}`)));
-        return;
-      }
-
-      const out = fs.createWriteStream(outputPath);
-      res.pipe(out);
-      out.on('finish', () => resolve(outputPath));
-      out.on('error', reject);
-    });
-
-    req.on('error', reject);
-    req.write(body);
-    req.end();
-  });
+function normalizeProvider(raw) {
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value || value === 'auto') return null;
+  if (value === 'openai') return 'openai-tts';
+  return value;
 }
 
-// CLI mode
+function parseCliArgs(argv) {
+  const args = [...argv];
+  let provider = '';
+
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i] === '--provider') {
+      provider = args[i + 1] || '';
+      args.splice(i, 2);
+      i -= 1;
+    }
+  }
+
+  return {
+    outputPath: args[0],
+    text: args[1],
+    voiceIdOrName: args[2] || DEFAULT_VOICE,
+    provider,
+  };
+}
+
+function unique(items) {
+  return [...new Set(items.filter(Boolean))];
+}
+
+function buildProviderOrder(explicitProvider) {
+  const requested = normalizeProvider(explicitProvider || getEnv('TTS_PROVIDER', ''));
+  if (requested) return [requested];
+  return unique(DEFAULT_PROVIDER_ORDER);
+}
+
+function providerLabel(provider) {
+  return provider === 'openai-tts' ? 'openai' : provider;
+}
+
+function buildSpeechOptions(provider, voiceIdOrName) {
+  const voice = String(voiceIdOrName || DEFAULT_VOICE).trim();
+  const voiceKey = voice.toLowerCase();
+
+  switch (provider) {
+    case 'elevenlabs':
+      return { voiceId: ELEVENLABS_VOICES[voiceKey] || voice || ELEVENLABS_VOICES.rachel };
+    case 'minimax':
+      return { voiceId: MINIMAX_VOICE_MAP[voiceKey] || voice || MINIMAX_VOICE_MAP.rachel };
+    case 'openai-tts':
+      return { voice: OPENAI_VOICE_MAP[voiceKey] || voice || OPENAI_VOICE_MAP.rachel };
+    default:
+      return {};
+  }
+}
+
+async function generateAudio(outputPath, text, voiceIdOrName = DEFAULT_VOICE, preferredProvider = '') {
+  const providers = buildProviderOrder(preferredProvider);
+  const errors = [];
+
+  for (const provider of providers) {
+    try {
+      const result = await generateSpeech(text, outputPath, {
+        provider,
+        ...buildSpeechOptions(provider, voiceIdOrName),
+      });
+      return { ...result, provider };
+    } catch (err) {
+      errors.push(`${providerLabel(provider)}: ${err.message}`);
+      if (normalizeProvider(preferredProvider)) break;
+    }
+  }
+
+  throw new Error(`TTS generation failed (${providerLabel(normalizeProvider(preferredProvider) || 'auto')}): ${errors.join(' | ')}`);
+}
+
 if (require.main === module) {
-  const [,, outputPath, text, voiceId] = process.argv;
+  const { outputPath, text, voiceIdOrName, provider } = parseCliArgs(process.argv.slice(2));
   if (!outputPath || !text) {
-    console.error('Usage: node pipeline/generate-audio.js <output.mp3> <text> [voice_id_or_name]');
+    console.error('Usage: node pipeline/generate-audio.js <output.mp3> <text> [voice_id_or_name] [--provider <auto|elevenlabs|minimax|openai>]');
     process.exit(1);
   }
-  generateAudio(outputPath, text, voiceId)
-    .then(p => { console.log(`✅ Audio saved: ${p}`); })
-    .catch(e => { console.error(`❌ ${e.message}`); process.exit(1); });
+
+  generateAudio(outputPath, text, voiceIdOrName, provider)
+    .then((result) => {
+      console.log(`✅ Audio saved: ${result.path}`);
+      console.log(`Provider: ${providerLabel(result.provider)}`);
+    })
+    .catch((err) => {
+      console.error(`❌ ${err.message}`);
+      process.exit(1);
+    });
 }
 
-module.exports = { generateAudio, VOICES };
+module.exports = {
+  generateAudio,
+  normalizeProvider,
+};
