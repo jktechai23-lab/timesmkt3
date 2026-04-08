@@ -34,40 +34,87 @@ function createLogger(projectRoot) {
   };
 }
 
-function createDependencyWaiter({ queueName, redisConnection, log }) {
+function createDependencyWaiter({ queueName, redisConnection, log, projectRoot }) {
   return async function waitForDependencies(job) {
     const deps = job.data.dependencies || [];
     if (deps.length === 0) return;
 
+    const outputDir = job.data.output_dir;
     const queue = new Queue(queueName, { connection: redisConnection });
-    log(job.data.output_dir, job.data.agent, `Waiting for dependencies: ${deps.join(', ')}`);
+    log(outputDir, job.data.agent, `Waiting for dependencies: ${deps.join(', ')}`);
+
+    // Resolve log dir for file-based dep checking (survives queue obliteration)
+    const absLogDir = projectRoot ? path.resolve(projectRoot, outputDir, 'logs') : null;
+
+    function depDoneViaLog(dep) {
+      if (!absLogDir) return false;
+      const logFile = path.join(absLogDir, `${dep}.log`);
+      if (!fs.existsSync(logFile)) return false;
+      return fs.readFileSync(logFile, 'utf-8').includes('Completed successfully');
+    }
+
+    function depFailedViaLog(dep) {
+      if (!absLogDir) return false;
+      const logFile = path.join(absLogDir, `${dep}.log`);
+      if (!fs.existsSync(logFile)) return false;
+      const content = fs.readFileSync(logFile, 'utf-8');
+      return content.includes('FAILED:') || content.includes('Claude CLI failed');
+    }
+
+    function campaignCancelled() {
+      if (!projectRoot) return false;
+      const archivedFile = path.resolve(projectRoot, outputDir, 'archived.json');
+      return fs.existsSync(archivedFile);
+    }
 
     const maxWait = 3600000;
     const pollInterval = 5000;
     const start = Date.now();
 
     while (Date.now() - start < maxWait) {
+      // Fast-fail if campaign was cancelled/archived
+      if (campaignCancelled()) {
+        await queue.close();
+        throw new Error(`Campaign cancelled — aborting ${job.data.agent}`);
+      }
+
+      // Check log files first (survives queue obliteration)
+      const logCompleted = deps.filter(dep => depDoneViaLog(dep));
+      const logFailed = deps.filter(dep => depFailedViaLog(dep));
+
+      if (logFailed.length > 0) {
+        await queue.close();
+        throw new Error(`Dependency failed (log) for ${job.data.agent}: ${logFailed.join(', ')}`);
+      }
+
+      if (logCompleted.length === deps.length) {
+        log(outputDir, job.data.agent, 'All dependencies completed (via log files).');
+        await queue.close();
+        return;
+      }
+
+      // Also check BullMQ completed list for any not yet confirmed via logs
+      const remaining = deps.filter(dep => !logCompleted.includes(dep));
       const completed = await queue.getCompleted(0, 1000);
-      const outputDir = job.data.output_dir;
       const completedAgents = completed.filter(j => j.data.output_dir === outputDir).map(j => j.data.agent);
 
-      if (deps.every(dep => completedAgents.includes(dep))) {
-        log(job.data.output_dir, job.data.agent, 'All dependencies completed.');
+      if (remaining.every(dep => completedAgents.includes(dep))) {
+        log(outputDir, job.data.agent, 'All dependencies completed (via queue).');
         await queue.close();
         return;
       }
 
       const failed = await queue.getFailed(0, 1000);
       const failedAgents = failed.filter(j => j.data.output_dir === outputDir).map(j => j.data.agent);
-      if (deps.some(dep => failedAgents.includes(dep))) {
+      if (remaining.some(dep => failedAgents.includes(dep))) {
         await queue.close();
-        throw new Error(`Dependency failed for ${job.data.agent}. Cannot proceed.`);
+        throw new Error(`Dependency failed (queue) for ${job.data.agent}: ${remaining.filter(d => failedAgents.includes(d)).join(', ')}`);
       }
 
       const elapsed = Math.round((Date.now() - start) / 1000);
       if (elapsed % 30 < pollInterval / 1000) {
-        const waiting = deps.filter(dep => !completedAgents.includes(dep));
-        log(job.data.output_dir, job.data.agent, `Still waiting for: ${waiting.join(', ')} (${elapsed}s elapsed)`);
+        const waiting = remaining.filter(dep => !completedAgents.includes(dep));
+        log(outputDir, job.data.agent, `Still waiting for: ${waiting.join(', ')} (${elapsed}s elapsed)`);
       }
 
       await new Promise(resolve => setTimeout(resolve, pollInterval));

@@ -58,7 +58,7 @@ const IMAGE_PROVIDER = workerEnv.IMAGE_PROVIDER.toLowerCase();
 const FREE_IMAGE_PROVIDER = workerEnv.FREE_IMAGE_PROVIDER.toLowerCase();
 const log = createLogger(PROJECT_ROOT);
 const runClaude = createClaudeRunner({ projectRoot: PROJECT_ROOT, log, command: 'claude' });
-const waitForDependencies = createDependencyWaiter({ queueName: QUEUE_NAME, redisConnection, log });
+const waitForDependencies = createDependencyWaiter({ queueName: QUEUE_NAME, redisConnection, log, projectRoot: PROJECT_ROOT });
 const {
   resolveImageSource,
   getFreeImageProvider,
