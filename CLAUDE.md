@@ -1,6 +1,6 @@
 ## Project Overview
 
-**timesmkt3 v4.3.4** — INEMA Time de Agentes de Marketing. AI-powered Social Media Content Automation System built with Claude Code inside the Antigravity IDE.
+**timesmkt3 v4.4.4** — INEMA Time de Agentes de Marketing. AI-powered Social Media Content Automation System built with Claude Code inside the Antigravity IDE.
 
 ---
 
@@ -264,6 +264,38 @@ Responsibilities:
 - Reference `skills/video-art-direction/SKILL.md` for 12 visual style presets
 
 Typical Output: `<project_dir>/outputs/<task_name>_<date>/video/ad_pro.mp4`
+
+### Video Pro Templates
+
+O Video Pro suporta **templates** que controlam o `visual_type` de cada cena. Em vez de apenas fotos, o vídeo pode conter gráficos, cards de texto, listas e comparações lado a lado.
+
+**5 templates:**
+
+| Template | Foco | Mix visual |
+|---|---|---|
+| `auto` | Agente decide (padrão) | Livre |
+| `data_story` | Dados/estatísticas | ~60% chart, ~20% text_card, ~20% photo |
+| `explainer` | Explicar conceitos | ~40% list/text_card, ~30% photo, ~30% chart |
+| `carousel_narrativo` | Narrativa visual | ~50% text_card, ~30% photo, ~20% chart |
+| `brand_film` | Cinematográfico | ~70% photo, ~20% text_card, ~10% chart |
+
+**5 visual_types por cena:**
+
+| Tipo | Renderiza | Campos |
+|---|---|---|
+| `photo` | Foto + text overlay + motion (padrão) | `image`, `motion`, `text_overlay` |
+| `chart` | Gráfico Chart.js (bar/line/pie/donut) | `chart_data`, `chart_type`, `chart_title` |
+| `text_card` | Texto grande em fundo estilizado | `card_title`, `card_body`, `card_bg` |
+| `list` | Itens em sequência | `list_items`, `list_title` |
+| `split` | Comparação lado a lado | `split_left`, `split_right`, `split_labels` |
+
+**Uso:** Incluir `"video_template": "data_story"` no payload, ou escrever "template data_story" na descrição da campanha no Telegram.
+
+**Implementação:**
+- `pipeline/render-visual-png.js` — gera PNGs de chart/text_card/list/split via Playwright
+- `pipeline/render-video-ffmpeg.js` — pre-renderiza visual_types antes de compor o vídeo
+- `pipeline/worker-video-pro.js` — injeta instruções de template no prompt do scene plan
+- Templates compartilham assets (áudio, imagens) — múltiplos templates coexistem no mesmo output dir
 
 ## Video Art Direction
 

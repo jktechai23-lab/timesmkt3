@@ -294,6 +294,10 @@ bot.command('help', async (ctx) => {
     `<code>/lotequick campanhas c2,c44,c45 fonte brand modo normal</code>\n` +
     `Ajustes do lote: <code>fonte api</code>, <code>fonte pasta prj/inema/imgs</code>, <code>fonte screenshot https://site.com</code>, <code>modo enxuto</code>, <code>modo normal</code>\n\n` +
 
+    `<b>Ajuda detalhada</b>\n` +
+    `/helpcampanha /helpaprovacoes /helpimagens\n` +
+    `/helpvideos /helptemplates /helpaudio /helpcustos\n\n` +
+
     `<b>Conversa</b>\n` +
     `/novochat — limpa historico\n` +
     `Texto livre = conversa com Claude`,
@@ -464,11 +468,69 @@ bot.command('helpvideos', async (ctx) => {
     `<b>/video-clip-pasta [caminho]</b> — Clips locais como assets\n` +
     `<code>/video-clip-pasta prj/coldbrew-coffee-co/assets/clips/</code>\n\n` +
 
+    `<b>Templates Video Pro:</b>\n` +
+    `O Video Pro aceita templates que definem o mix de visuais:\n` +
+    `  <code>auto</code> — agente decide (padrao)\n` +
+    `  <code>data_story</code> — graficos e dados (~60% chart)\n` +
+    `  <code>explainer</code> — passos e listas (~40% list/text)\n` +
+    `  <code>carousel_narrativo</code> — texto impacto (~50% text_card)\n` +
+    `  <code>brand_film</code> — cinematografico (~70% photo)\n\n` +
+    `Uso: inclua "template data_story" na descricao da campanha.\n` +
+    `Detalhes: /helptemplates\n\n` +
+
     `<b>Como funciona o video:</b>\n` +
     `1. Claude gera um scene_plan.json com cenas, textos, cores\n` +
-    `2. Remotion renderiza cada cena em video MP4\n` +
+    `2. Remotion/ffmpeg renderiza cada cena em video MP4\n` +
     `3. Cenas: Hook (0-3s) → Produto (3-8s) → Beneficio (8-12s) → CTA (12-15s)\n` +
     `4. Todas as animacoes usam o brand palette do projeto`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+// ── /helptemplates ─────────────────────────────────────────────────────────
+
+bot.command('helptemplates', async (ctx) => {
+  await ctx.reply(
+    `<b>TEMPLATES VIDEO PRO</b>\n\n` +
+
+    `Templates controlam o <b>visual_type</b> de cada cena do video.\n` +
+    `Em vez de so fotos, o video pode ter graficos, cards de texto, listas e comparacoes.\n\n` +
+
+    `<b>5 Templates disponiveis:</b>\n\n` +
+
+    `<b>auto</b> (padrao)\n` +
+    `Agente decide livremente. Comportamento atual.\n\n` +
+
+    `<b>data_story</b> — Dados como protagonista\n` +
+    `~60% graficos, ~20% text cards, ~20% fotos\n` +
+    `Ideal para: ROI, estatisticas, comparacoes numericas\n` +
+    `Quando a narracao diz "30%", aparece um grafico de barras.\n\n` +
+
+    `<b>explainer</b> — Explicar conceitos\n` +
+    `~40% listas/text cards, ~30% fotos, ~30% graficos\n` +
+    `Ideal para: tutoriais, processos, passo a passo\n\n` +
+
+    `<b>carousel_narrativo</b> — Narrativa visual\n` +
+    `~50% text cards, ~30% fotos, ~20% graficos\n` +
+    `Ideal para: storytelling, frases de impacto\n\n` +
+
+    `<b>brand_film</b> — Cinematografico\n` +
+    `~70% fotos, ~20% text cards, ~10% graficos\n` +
+    `Ideal para: branding, emocional, lifestyle\n\n` +
+
+    `<b>5 Tipos visuais por cena:</b>\n` +
+    `  <code>photo</code> — foto + text overlay + motion\n` +
+    `  <code>chart</code> — grafico (bar/line/pie/donut)\n` +
+    `  <code>text_card</code> — texto grande em fundo estilizado\n` +
+    `  <code>list</code> — itens numerados ou com bullets\n` +
+    `  <code>split</code> — comparacao lado a lado\n\n` +
+
+    `<b>Como usar:</b>\n` +
+    `Inclua "template X" na descricao da campanha:\n` +
+    `<i>"quero um video pro sobre IA, template data_story"</i>\n\n` +
+
+    `Templates compartilham audio e imagens — voce pode gerar\n` +
+    `multiplos templates para a mesma campanha.`,
     { parse_mode: 'HTML' }
   );
 });
