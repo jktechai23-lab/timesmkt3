@@ -1171,6 +1171,8 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
 
           for (let s = 0; s < plan.scenes.length; s++) {
             const scene = plan.scenes[s];
+            // Skip non-photo visual_types — they don't need image files
+            if (scene.visual_type && scene.visual_type !== 'photo') continue;
             if (scene.image && fs.existsSync(scene.image)) continue;
 
             const replacement = pickFallbackAssetForScene(fallbackAssets, s);
@@ -1204,6 +1206,8 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
 
         if (!job.data.carousel_in_video) {
           for (let s = 0; s < plan.scenes.length; s++) {
+            // Skip non-photo visual_types — they don't use image files
+            if (plan.scenes[s].visual_type && plan.scenes[s].visual_type !== 'photo') continue;
             const imgPath = plan.scenes[s].image || '';
             if (/\/ads\/|carousel_|_carousel|banner_/i.test(imgPath)) {
               const absImgsDirFix = path.resolve(projectRoot, output_dir, 'imgs');
@@ -1458,7 +1462,17 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
         continue;
       }
 
-      const renderer = getVideoRenderer('pro');
+      // Force ffmpeg when scene plan has non-photo visual_types (chart, text_card, list, split)
+      // Remotion doesn't support these yet — only ffmpeg has render-visual-png integration
+      let renderer = getVideoRenderer('pro');
+      try {
+        const planData = JSON.parse(fs.readFileSync(absScenePlan, 'utf-8'));
+        const hasVisualTypes = (planData.scenes || []).some(s => s.visual_type && s.visual_type !== 'photo');
+        if (hasVisualTypes) {
+          renderer = renderFfmpeg;
+          log(output_dir, 'video_pro', `Scene plan has visual_types — using ffmpeg renderer`);
+        }
+      } catch {}
       const rendererName = renderer === renderRemotion ? 'Remotion' : 'ffmpeg';
       log(output_dir, 'video_pro', `Rendering video ${i}/${video_count} via ${rendererName}...`);
       try {
