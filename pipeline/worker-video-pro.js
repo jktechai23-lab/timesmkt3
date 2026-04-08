@@ -4,30 +4,13 @@ const path = require('path');
 const { captureScreenshots, extractUrlsFromFiles } = require('./capture-screenshots');
 const { getEnv, hasEnv } = require('../config/env');
 const { writeVideoApprovalTimeout } = require('../telegram/approval-utils');
-
-function normalizeTtsProvider(raw) {
-  const value = String(raw || '').trim().toLowerCase();
-  if (!value || value === 'auto') return null;
-  if (value === 'openai-tts') return 'openai';
-  return value;
-}
-
-function hasConfiguredTtsProvider(provider) {
-  switch (normalizeTtsProvider(provider)) {
-    case 'elevenlabs':
-      return hasEnv('ELEVENLABS_API_KEY');
-    case 'minimax':
-      return hasEnv('MINIMAX_API_KEY') && hasEnv('MINIMAX_GROUP_ID');
-    case 'openai':
-      return hasEnv('OPENAI_API_KEY');
-    default:
-      return false;
-  }
-}
-
-function hasAnyTtsProvider() {
-  return ['elevenlabs', 'minimax', 'openai'].some((provider) => hasConfiguredTtsProvider(provider));
-}
+const {
+  normalizeTtsProvider,
+  hasConfiguredTtsProvider,
+  hasAnyTtsProvider,
+  validateNarrationFile,
+} = require('./video-audio');
+const { markAudioMissing } = require('./video-audio');
 
 function shouldAllowEmptyOverlay(scene, plan, index) {
   const narration = String(scene?.narration || '').trim();
@@ -395,6 +378,7 @@ REUSE STRATEGY (with ${brandAssets.length} images for 30-50 cuts):
 
     if ((job.data.video_audio || 'narration') !== 'none' && !narrationExists && !hasNarrationProvider) {
       log(output_dir, 'video_pro', `Audio required but no TTS provider is available for stage 3 (provider=${ttsProviderLabel}).`);
+      markAudioMissing(projectRoot, output_dir, 'no_tts_provider');
       process.stdout.write(`[STAGE3_AUDIO_REQUIRED] ${output_dir} pro provider=${ttsProviderLabel}\n`);
       return { status: 'failed', reason: `audio required for video_pro: ${ttsProviderLabel}` };
     }
@@ -422,6 +406,27 @@ After generating all narrations, print: [NARRATION_DONE]`;
       log(output_dir, 'video_pro', 'Narration generated.');
     } else {
       log(output_dir, 'video_pro', 'Narration already exists, skipping.');
+    }
+
+    if ((job.data.video_audio || 'narration') !== 'none') {
+      for (let i = 1; i <= video_count; i++) {
+        const idx = String(i).padStart(2, '0');
+        const narPath = path.resolve(absAudioDir, `${task_name}_video_${idx}_narration.mp3`);
+        if (!fs.existsSync(narPath)) {
+          const reason = `missing narration audio for video ${idx}`;
+          log(output_dir, 'video_pro', reason);
+          process.stdout.write(`[STAGE3_AUDIO_REQUIRED] ${output_dir} pro video_${idx} reason=${reason}\n`);
+          return { status: 'failed', reason };
+        }
+        const validation = validateNarrationFile(narPath);
+        if (!validation.ok) {
+          const reason = `invalid narration audio for video ${idx}: ${validation.reason}`;
+          log(output_dir, 'video_pro', reason);
+          markAudioMissing(projectRoot, output_dir, validation.reason);
+          process.stdout.write(`[STAGE3_AUDIO_REQUIRED] ${output_dir} pro video_${idx} reason=${validation.reason}\n`);
+          return { status: 'failed', reason };
+        }
+      }
     }
 
     log(output_dir, 'video_pro', 'Phase 1.5: Analyzing narration audio timing...');
@@ -1398,18 +1403,27 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
         });
         log(output_dir, 'video_pro', `Video ${i} rendered via ${rendererName}: ${videoOutput}`);
       } catch (renderErr) {
+        const message = renderErr.message.slice(0, 200);
         if (renderer === renderRemotion) {
-          log(output_dir, 'video_pro', `Remotion render ${i} failed, falling back to ffmpeg: ${renderErr.message.slice(0, 150)}`);
+          log(output_dir, 'video_pro', `Remotion render ${i} failed, falling back to ffmpeg: ${message}`);
+          let fallbackReason = '';
+          let fallbackFailed = false;
           try {
             execFileSync('node', [renderFfmpeg, planToRender, `${output_dir}/video/${proFilename}`], {
               cwd: projectRoot, stdio: 'pipe', timeout: 300000,
             });
             log(output_dir, 'video_pro', `Video ${i} rendered via ffmpeg (fallback): ${videoOutput}`);
           } catch (fbErr) {
-            log(output_dir, 'video_pro', `ffmpeg fallback ${i} also failed: ${fbErr.message.slice(0, 200)}`);
+            fallbackFailed = true;
+            fallbackReason = fbErr.message.slice(0, 200);
+            log(output_dir, 'video_pro', `ffmpeg fallback ${i} also failed: ${fallbackReason}`);
+          }
+          if (fallbackFailed) {
+            return { status: 'failed', reason: `render_failed: remotion:${message} ffmpeg:${fallbackReason}` };
           }
         } else {
-          log(output_dir, 'video_pro', `ffmpeg render ${i} failed: ${renderErr.message.slice(0, 200)}`);
+          log(output_dir, 'video_pro', `ffmpeg render ${i} failed: ${message}`);
+          return { status: 'failed', reason: `render_failed:${message}` };
         }
       }
     }

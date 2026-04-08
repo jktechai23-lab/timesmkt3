@@ -36,7 +36,7 @@ const MINIMAX_VOICE_MAP = {
   arnold: 'male-qn-qingse',
 };
 
-const DEFAULT_PROVIDER_ORDER = ['elevenlabs', 'minimax', 'openai-tts'];
+const DEFAULT_PROVIDER_ORDER = ['elevenlabs', 'fish', 'minimax'];
 
 function normalizeProvider(raw) {
   const value = String(raw || '').trim().toLowerCase();

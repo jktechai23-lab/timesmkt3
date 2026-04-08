@@ -445,6 +445,14 @@ function renderVideo(scenePlanPath, outputPath) {
     // Step 3: Add audio — narration and/or background music
     const hasNarration = audioPath && fs.existsSync(audioPath);
     const hasMusic     = musicPath && fs.existsSync(musicPath);
+    const hasNarrationScript = Boolean(plan.narration_script && plan.narration_script.trim());
+    const sceneHasSpeech = scenes.some((scene) => Boolean((scene?.narration || '').trim()));
+    const voiceDeclared = Boolean(plan.voice || plan.narration_voice);
+    const requiresNarration = Boolean(hasNarrationScript || sceneHasSpeech || voiceDeclared);
+
+    if (requiresNarration && !hasNarration) {
+      throw new Error('Narration audio required by the scene plan but the audio file is missing.');
+    }
 
     if (hasNarration && hasMusic) {
       // Mix narration (full volume) + background music (lower volume) via amix

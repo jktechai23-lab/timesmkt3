@@ -216,6 +216,7 @@ test('worker video pro falls back to project assets when scene images are missin
       project_dir: projectDir,
       platform_targets: ['instagram'],
       video_count: 1,
+      video_audio: 'none',
       image_source: 'brand',
     },
   });

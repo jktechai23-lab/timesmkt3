@@ -320,3 +320,54 @@ test('startContinuousMonitor syncs currentStage to the stage currently running',
     global.setInterval = originalSetInterval;
   }
 });
+
+test('startContinuousMonitor notifies quick video failures from logs even without worker stdout', async () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'timesmkt3-monitor-fail-'));
+  const campDir = path.join(projectRoot, 'prj', 'inema', 'outputs', 'camp-fail');
+  fs.mkdirSync(path.join(campDir, 'logs'), { recursive: true });
+  fs.writeFileSync(path.join(campDir, 'chat_context.json'), JSON.stringify({ chatId: '999' }));
+  fs.writeFileSync(
+    path.join(campDir, 'logs', 'video_quick.log'),
+    'Starting video_quick...\nFAILED: missing narration for quick video 01: audio_silent_placeholder\n',
+  );
+
+  const sentMessages = [];
+  const originalSetInterval = global.setInterval;
+  global.setInterval = (fn) => {
+    Promise.resolve().then(fn);
+    return { fake: true };
+  };
+
+  try {
+    startContinuousMonitor({
+      bot: {
+        api: {
+          sendMessage: async (chatId, text) => { sentMessages.push({ chatId, text }); },
+          sendDocument: async () => {},
+          sendVideo: async () => {},
+        },
+      },
+      session: {
+        get: () => ({ runningTask: null, campaignV3: null }),
+        clearRunningTask: () => {},
+        clearCampaignV3: () => {},
+      },
+      projectRoot,
+      monitoredSignals: new Set(),
+      readChatContext: (dir) => JSON.parse(fs.readFileSync(path.join(dir, 'chat_context.json'), 'utf-8')),
+      writeImageApproval: () => {},
+      writeVideoApproval: () => {},
+      sendImageApprovalRequest: async () => {},
+      sendVideoApprovalRequest: async () => {},
+      sendStageApprovalRequest: async () => {},
+      enqueueStage: async () => {},
+      stages: {},
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.ok(sentMessages.some((entry) => entry.text.includes('Video Quick falhou')));
+  } finally {
+    global.setInterval = originalSetInterval;
+  }
+});

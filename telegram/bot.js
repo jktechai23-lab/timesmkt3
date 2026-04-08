@@ -1293,7 +1293,7 @@ bot.on('message:text', async (ctx) => {
   }
 
   // ── Detect campaign intent in free text ────────────────────────────────
-  const campaignKeywords = /\b(campanha|campaign|pascoa|natal|ano.?novo|dia.das.maes|black.friday|lancamento|carrossel|carousel|video|imagem|post|reel|story|stories|publici|anuncio|anúncio)\b/i;
+  const campaignKeywords = /\b(campanha|campaign|pascoa|natal|ano.?novo|dia.das.maes|black.friday|lancamento|carrossel|carousel|carocel|carossel|carrocel|video|imagem|post|reel|story|stories|publici|anuncio|anúncio)\b/i;
   const campaignIntent = campaignKeywords.test(text) && text.length > 30;
 
   if (campaignIntent && !s.processing) {
@@ -1618,6 +1618,9 @@ bot.start({ drop_pending_updates: true,
     // Clear any leftover jobs from previous runs
     await pipelineQueue.obliterate({ force: true }).catch((err) => console.error('[startup] Failed to clear queue:', err.message));
     console.log('[startup] Queue cleared.');
+
+    // Clear ephemeral flags that get stuck when bot restarts mid-processing
+    session.clearAllProcessingFlags();
 
     // Check for existing workers (no longer killing them — they may be valid)
     if (isWorkerRunning()) {

@@ -108,6 +108,52 @@ function startContinuousMonitor(deps) {
           monitoredSignals.delete(imgApprovalKey);
         }
 
+        const audioMissingFile = path.join(campDir, 'video', 'audio_missing.json');
+        if (fs.existsSync(audioMissingFile)) {
+          const audioKey = `stage3_audio_missing:${relDir}`;
+          if (!monitoredSignals.has(audioKey)) {
+            monitoredSignals.add(audioKey);
+            let reason = 'Narração indisponível';
+            try {
+              const report = JSON.parse(fs.readFileSync(audioMissingFile, 'utf-8'));
+              if (report.reason) reason = report.reason;
+            } catch {}
+            bot.api.sendMessage(
+              chatId,
+              `⚠️ <b>Etapa 3 aguardando áudio</b>\n${reason.replace(/_/g, ' ')}.\nReponha créditos (ElevenLabs / MiniMax / Fish) ou gere o MP3 com <code>node pipeline/generate-audio.js ...</code>.`,
+              { parse_mode: 'HTML' },
+            ).catch((err) => console.error('[monitor] audio missing notify failed:', err.message));
+          }
+          continue;
+        }
+
+        const failureWatch = [
+          {
+            key: 'video_quick_failure',
+            logFile: path.join(campDir, 'logs', 'video_quick.log'),
+            marker: 'FAILED:',
+            formatMessage: (details) => `❌ <b>Video Quick falhou</b>\n<code>${details}</code>`,
+          },
+          {
+            key: 'video_pro_failure',
+            logFile: path.join(campDir, 'logs', 'video_pro.log'),
+            marker: 'FAILED:',
+            formatMessage: (details) => `❌ <b>Video Pro falhou</b>\n<code>${details}</code>`,
+          },
+        ];
+
+        for (const watcher of failureWatch) {
+          const signalKey = `${watcher.key}:${relDir}`;
+          if (monitoredSignals.has(signalKey) || !fs.existsSync(watcher.logFile)) continue;
+          const content = fs.readFileSync(watcher.logFile, 'utf-8');
+          if (!content.includes(watcher.marker)) continue;
+          monitoredSignals.add(signalKey);
+          const lastLine = content.split('\n').filter(Boolean).reverse().find((line) => line.includes(watcher.marker)) || watcher.marker;
+          const details = lastLine.replace(/^.*FAILED:\s*/, '').slice(0, 700);
+          bot.api.sendMessage(chatId, watcher.formatMessage(details), { parse_mode: 'HTML' })
+            .catch((err) => console.error('[monitor] failure send failed:', err.message));
+        }
+
         if (hasActiveSession && sess?.campaignV3?.notifications !== false) {
           const logsDir = path.join(campDir, 'logs');
           const phaseNotifs = [
@@ -241,11 +287,22 @@ function startContinuousMonitor(deps) {
             if (num === 1) {
               const reportPath = path.join(campDir, 'interactive_report.html');
               const briefMdPath = path.join(campDir, 'research_brief.md');
+              const creativeBriefPath = path.join(campDir, 'creative', 'creative_brief.md');
               if (fs.existsSync(reportPath)) {
                 bot.api.sendDocument(chatId, new InputFile(reportPath), { caption: '📊 Relatório interativo da pesquisa' }).catch(() => {});
               }
               if (fs.existsSync(briefMdPath)) {
                 bot.api.sendDocument(chatId, new InputFile(briefMdPath), { caption: '📋 Research Brief' }).catch(() => {});
+              }
+              if (fs.existsSync(creativeBriefPath)) {
+                const brief = fs.readFileSync(creativeBriefPath, 'utf-8');
+                const { toTelegramHTML, splitMessage } = require('./formatter');
+                const parts = splitMessage(toTelegramHTML(brief));
+                (async () => {
+                  for (const part of parts) {
+                    await bot.api.sendMessage(chatId, part, { parse_mode: 'HTML' }).catch(() => {});
+                  }
+                })();
               }
             }
             if (num === 3) {

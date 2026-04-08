@@ -144,18 +144,6 @@ const PROVIDERS = {
     envKeys: ['MINIMAX_API_KEY', 'MINIMAX_GROUP_ID'],
     description: 'TTS de alta qualidade. Suporte a múltiplas vozes e emoções.',
   },
-  'openai-tts': {
-    name: 'OpenAI TTS',
-    type: 'tts',
-    subtype: 'ai-generation',
-    cost: 'paid',
-    priceNote: '$15/1M chars (~$0.015/1k chars)',
-    quality: 'high',
-    formats: ['mp3', 'opus', 'aac', 'flac'],
-    languages: ['pt-BR', 'en', 'es', '+57 idiomas'],
-    envKeys: ['OPENAI_API_KEY'],
-    description: 'Vozes naturais (alloy, echo, fable, onyx, nova, shimmer). Mesma key da DALL-E.',
-  },
   'local-piper': {
     name: 'Piper (Local)',
     type: 'tts',
@@ -168,7 +156,21 @@ const PROVIDERS = {
     envKeys: [],
     description: 'TTS local via Piper. Sem custo, sem internet. Qualidade boa para narração simples.',
   },
+  'fish': {
+    name: 'Fish Audio',
+    type: 'tts',
+    subtype: 'ai-generation',
+    cost: 'paid',
+    priceNote: 'Plano starter com créditos iniciais',
+    quality: 'high',
+    formats: ['mp3', 'wav'],
+    languages: ['pt-BR', 'en', 'es'],
+    envKeys: ['FISH_AUDIO_API_KEY'],
+    description: 'Vozes brasileiras narrativas (Bella, Ana, Bella). Ideal para storytelling profundo.',
+  },
 };
+
+const PREFERRED_TTS_ORDER = ['elevenlabs', 'fish', 'minimax', 'openai-tts', 'local-piper'];
 
 // ── Helper Functions ────────────────────────────────────────────────────────
 
@@ -195,6 +197,12 @@ function getAvailableProviders(type) {
 function getBestProvider(type, preferFree = false) {
   const available = getAvailableProviders(type).filter(p => p.available);
   if (available.length === 0) return null;
+  if (type === 'tts') {
+    for (const id of PREFERRED_TTS_ORDER) {
+      const candidate = available.find(p => p.id === id);
+      if (candidate) return candidate;
+    }
+  }
   if (preferFree) {
     const free = available.find(p => p.cost === 'free');
     if (free) return free;

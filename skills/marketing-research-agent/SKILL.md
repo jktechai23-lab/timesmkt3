@@ -55,7 +55,7 @@ If niche or topic is not provided, ask the user before proceeding.
 
 **DO NOT** use the IDE's built-in web search tool. Instead, follow these exact steps to pull data programmatically:
 
-1. Create a local Node script (e.g., `tavily-search.js`) in the root directory.
+1. Create a local Node script inside the campaign output directory: `<output_dir>/tavily-search.js`. **Never create this script in the project root.**
 2. The script must require `@tavily/core`.
 3. To get the API key, manually read and parse the `.env` file instead of using the `dotenv` package.
    Example: 
@@ -70,7 +70,7 @@ If niche or topic is not provided, ask the user before proceeding.
    - `[niche] audience pain points and desires`
    - `[niche] best performing ad hooks and angles`
    - `[niche] viral content topics social media`
-5. Map over the results to retain only titles and content snippets to save space, and save them to a temporary JSON file (e.g., `tavily_results.json`).
+5. Map over the results to retain only titles and content snippets to save space, and save them to `<output_dir>/tavily_results.json`. **Never write this file to the project root.**
 6. Run the script via the terminal. Wait for the background command to finish and read the JSON results using `view_file`.
 
 ---

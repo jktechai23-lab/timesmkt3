@@ -209,9 +209,17 @@ Rules:
   runClaude(prompt, 'campaign_parser', (code, stdout) => {
     if (code !== 0 || !stdout.trim()) return callback(null);
     try {
-      const jsonMatch = stdout.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return callback(null);
-      const payload = JSON.parse(jsonMatch[0]);
+      // Extract first complete JSON object (balanced braces), handling code blocks
+      const source = stdout.replace(/```(?:json)?\s*/g, '').replace(/```/g, '');
+      const start = source.indexOf('{');
+      if (start === -1) return callback(null);
+      let depth = 0, end = -1;
+      for (let i = start; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+      }
+      if (end === -1) return callback(null);
+      const payload = JSON.parse(source.slice(start, end + 1));
       const modelKeywords = ['z-image-turbo', 'flux-kontext-pro', 'flux-kontext-max', 'gpt-image-1', 'flux pro', 'flux max', 'gpt image'];
       const userPickedModel = modelKeywords.some(k => text.toLowerCase().includes(k));
       if (!userPickedModel) payload.image_model = env.KIE_DEFAULT_MODEL || 'z-image';

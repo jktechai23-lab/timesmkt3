@@ -29,7 +29,11 @@ function loadFromDisk() {
 
 function saveToDisk() {
   try {
-    const obj = Object.fromEntries(sessions);
+    const obj = {};
+    for (const [id, s] of sessions) {
+      const { processing: _p, ...rest } = s;
+      obj[id] = rest;
+    }
     fs.writeFileSync(SESSION_FILE, JSON.stringify(obj, null, 2), 'utf-8');
   } catch (e) {
     console.error(`[session] Failed to save sessions: ${e.message}`);
@@ -221,6 +225,14 @@ function clearRunningTask(chatId) {
   debouncedSave();
 }
 
+function clearAllProcessingFlags() {
+  for (const [, s] of sessions) {
+    s.processing = false;
+  }
+  debouncedSave();
+  console.log('[session] Cleared processing flags on startup');
+}
+
 module.exports = {
   get, setProject, setRunningTask, clearRunningTask,
   addToHistory, getHistory, clearHistory,
@@ -232,6 +244,7 @@ module.exports = {
   setPendingImageError, clearPendingImageError,
   setCampaignV3, getCampaignV3, updateCampaignV3Stage, setCampaignV3Stage,
   setPendingStageApproval, clearPendingStageApproval, clearCampaignV3,
+  clearAllProcessingFlags,
   DEFAULT_PROJECT,
   loadFromDisk, saveToDisk,
 };

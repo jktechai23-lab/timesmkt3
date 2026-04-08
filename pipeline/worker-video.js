@@ -2,37 +2,16 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { captureScreenshots, extractUrlsFromFiles } = require('./capture-screenshots');
-const { getEnv, hasEnv } = require('../config/env');
+const { getEnv } = require('../config/env');
 const { writeVideoApprovalTimeout } = require('../telegram/approval-utils');
-
-function normalizeTtsProvider(raw) {
-  const value = String(raw || '').trim().toLowerCase();
-  if (!value || value === 'auto') return null;
-  if (value === 'openai-tts') return 'openai';
-  return value;
-}
-
-function hasConfiguredTtsProvider(provider) {
-  switch (normalizeTtsProvider(provider)) {
-    case 'elevenlabs':
-      return hasEnv('ELEVENLABS_API_KEY');
-    case 'minimax':
-      return hasEnv('MINIMAX_API_KEY') && hasEnv('MINIMAX_GROUP_ID');
-    case 'openai':
-      return hasEnv('OPENAI_API_KEY');
-    default:
-      return false;
-  }
-}
-
-function hasAnyTtsProvider() {
-  return ['elevenlabs', 'minimax', 'openai'].some((provider) => hasConfiguredTtsProvider(provider));
-}
-
-function canProduceNarration(ttsProvider) {
-  const selectedProvider = normalizeTtsProvider(ttsProvider);
-  return selectedProvider ? hasConfiguredTtsProvider(selectedProvider) : hasAnyTtsProvider();
-}
+const { markAudioMissing } = require('./video-audio');
+const {
+  normalizeTtsProvider,
+  hasConfiguredTtsProvider,
+  hasAnyTtsProvider,
+  canProduceNarration,
+  validateNarrationFile,
+} = require('./video-audio');
 
 function attachExistingQuickNarration(projectRoot, output_dir, task_name, idx, log = () => {}) {
   let planPath = path.resolve(projectRoot, output_dir, 'video', `${task_name}_video_${idx}_scene_plan.json`);
@@ -87,6 +66,10 @@ function ensureQuickNarration({
 
   const narrationFile = plan.narration_file ? path.resolve(projectRoot, plan.narration_file) : null;
   if (narrationFile && fs.existsSync(narrationFile)) {
+    const validation = validateNarrationFile(narrationFile);
+    if (!validation.ok) {
+      return { ok: false, reason: validation.reason, planPath };
+    }
     return { ok: true, reason: 'existing_narration', planPath };
   }
 
@@ -127,6 +110,11 @@ function ensureQuickNarration({
     });
   } catch (err) {
     return { ok: false, reason: `tts_failed:${err.message}`, planPath };
+  }
+
+  const validation = validateNarrationFile(absAudioPath);
+  if (!validation.ok) {
+    return { ok: false, reason: validation.reason, planPath };
   }
 
   plan.narration_file = relAudioPath;
@@ -342,6 +330,7 @@ After saving scene plans, print exactly: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
 
     if (video_audio !== 'none' && !existing_narration_file && !canProduceNarration(tts_provider)) {
       log(output_dir, 'video_quick', `Audio required but no TTS provider is available for stage 3 (provider=${ttsProviderLabel}).`);
+      markAudioMissing(projectRoot, output_dir, 'no_tts_provider');
       process.stdout.write(`[STAGE3_AUDIO_REQUIRED] ${output_dir} quick provider=${ttsProviderLabel}\n`);
       return { status: 'failed', reason: `audio required for quick video: ${ttsProviderLabel}` };
     }
@@ -381,6 +370,7 @@ After saving scene plans, print exactly: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
 
       if (!narrationStatus.ok) {
         log(output_dir, 'video_quick', `Missing narration for video ${idx}; stopping quick render (${narrationStatus.reason}).`);
+        markAudioMissing(projectRoot, output_dir, narrationStatus.reason);
         process.stdout.write(`[STAGE3_AUDIO_REQUIRED] ${output_dir} quick video_${idx} reason=${narrationStatus.reason}\n`);
         process.stdout.write(`[VIDEO_QUICK_AUDIO_MISSING] ${output_dir} video_${idx}\n`);
         return { status: 'failed', reason: `missing narration for quick video ${idx}: ${narrationStatus.reason}` };
@@ -417,7 +407,12 @@ After saving scene plans, print exactly: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
         });
         log(output_dir, 'video_quick', `Video ${i} rendered: ${videoOutput}`);
       } catch (renderErr) {
-        log(output_dir, 'video_quick', `Render failed: ${renderErr.message.slice(0, 200)}`);
+        const message = renderErr.message.slice(0, 200);
+        log(output_dir, 'video_quick', `Render failed: ${message}`);
+        if (/audio required/i.test(message)) {
+          markAudioMissing(projectRoot, output_dir, 'render_audio_missing');
+        }
+        return { status: 'failed', reason: `render_failed:${message}` };
       }
     }
 

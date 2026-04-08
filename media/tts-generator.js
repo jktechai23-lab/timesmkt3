@@ -104,38 +104,42 @@ async function generateMiniMax(text, outputPath, options = {}) {
   throw new Error(`MiniMax TTS failed: ${JSON.stringify(data)}`);
 }
 
-// ── OpenAI TTS ──────────────────────────────────────────────────────────────
+// ── Fish Audio ───────────────────────────────────────────────────────────────
 
-async function generateOpenAITTS(text, outputPath, options = {}) {
-  const apiKey = getEnvVar('OPENAI_API_KEY');
-  if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
+async function generateFishAudio(text, outputPath, options = {}) {
+  const apiKey = getEnvVar('FISH_AUDIO_API_KEY');
+  if (!apiKey) throw new Error('FISH_AUDIO_API_KEY not configured');
 
-  const voice = options.voice || 'nova'; // alloy, echo, fable, onyx, nova, shimmer
-  const model = options.model || 'tts-1'; // tts-1 or tts-1-hd
-  const speed = options.speed || 1.0;
-
+  const voiceId = options.voiceId || 'f18e96e1ed024df98860f6ff60bd6695'; // Bella
+  const model = options.model || 's1';
+  const speed = options.speed || 0.88;
   const body = JSON.stringify({
+    text,
+    reference_id: voiceId,
+    format: 'mp3',
     model,
-    input: text,
-    voice,
-    speed,
-    response_format: 'mp3',
+    prosody: {
+      speed,
+      pitch: options.pitch || 0,
+    },
   });
 
   const audioBuffer = await httpPostBinary(
-    'api.openai.com',
-    '/v1/audio/speech',
+    'api.fish.audio',
+    '/v1/tts',
     body,
     {
-      'Authorization': `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     }
   );
 
   fs.writeFileSync(outputPath, audioBuffer);
-  console.log(`  ✅ OpenAI TTS saved: ${outputPath} (voice: ${voice})`);
-  return { provider: 'openai-tts', voice, chars: text.length, path: outputPath };
+  console.log(`  ✅ Fish Audio TTS saved: ${outputPath} (voice ${voiceId})`);
+  return { provider: 'fish', voiceId, chars: text.length, path: outputPath };
 }
+
+// ── OpenAI TTS ──────────────────────────────────────────────────────────────
 
 // ── Piper (Local) ───────────────────────────────────────────────────────────
 
@@ -178,7 +182,7 @@ async function generateSpeech(text, outputPath, options = {}) {
   switch (provider) {
     case 'elevenlabs': return generateElevenLabs(text, outputPath, options);
     case 'minimax': return generateMiniMax(text, outputPath, options);
-    case 'openai-tts': return generateOpenAITTS(text, outputPath, options);
+    case 'fish': return generateFishAudio(text, outputPath, options);
     case 'local-piper': return generatePiper(text, outputPath, options);
     default: throw new Error(`Unknown TTS provider: ${provider}`);
   }
@@ -194,13 +198,10 @@ const VOICES = {
     'Josh': 'TxGEqnHWrfWFTfGW9XjX',
     'Arnold': 'VR6AewLTigWG4xSOukaG',
   },
-  'openai-tts': {
-    'alloy': 'Neutral, balanced',
-    'echo': 'Warm, conversational',
-    'fable': 'Expressive, British',
-    'onyx': 'Deep, authoritative',
-    'nova': 'Friendly, female',
-    'shimmer': 'Soft, gentle',
+  fish: {
+    'Bella': 'f18e96e1ed024df98860f6ff60bd6695',
+    'Warm Gentle Midage': '5b0bdf4a1e9c46e4b8469730ade927b9',
+    'Ana Brazilian': '2f41253e0f234410ab6d00a6f3617a21',
   },
 };
 
@@ -249,7 +250,7 @@ module.exports = {
   generateSpeech,
   generateElevenLabs,
   generateMiniMax,
-  generateOpenAITTS,
   generatePiper,
+  generateFishAudio,
   VOICES,
 };

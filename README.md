@@ -202,9 +202,11 @@ O sistema escolhe automaticamente baseado nas API keys configuradas.
 | Provider | Custo | Qualidade |
 |---|---|---|
 | **ElevenLabs** | $0.30/1k chars | Excelente |
-| OpenAI TTS | $0.015/1k chars | Alta |
+| **Fish Audio (Bella)** | plano starter | Narracao storytelling |
 | MiniMax | ~$0.01/1k chars | Alta |
 | **Piper (local)** | Gratis | Boa |
+
+O fluxo de fallback tenta vozes de TTS na ordem `ElevenLabs → Fish Audio (Bella) → MiniMax → Piper`. Quando o ElevenLabs não está disponível ele já aciona a Fish, que usa a voz Bella por padrão — bastam `FISH_AUDIO_API_KEY` e o texto em pt-BR para ter uma narração narrativa limpa.
 
 MiniMax:
 - `MINIMAX_API_KEY` e `MINIMAX_GROUP_ID`
@@ -225,7 +227,7 @@ MiniMax:
 
 ```
 Imagem -> Kie.ai -> Pollinations -> DALL-E -> Pexels (fallback gratis)
-Voz    -> ElevenLabs -> OpenAI TTS -> MiniMax -> Piper (fallback local)
+Voz    -> ElevenLabs -> Fish Audio (Bella) -> MiniMax -> Piper (fallback local)
 Musica -> Pixabay (gratis) ou Suno/ElevenLabs (pago)
 ```
 
@@ -478,6 +480,7 @@ IMAGE_PROVIDER=kie         # ou pollinations (gratis)
 KIE_API_KEY=               # se IMAGE_PROVIDER=kie
 PEXELS_API_KEY=            # fotos stock gratis
 ELEVENLABS_API_KEY=        # narracao de video
+FISH_AUDIO_API_KEY=        # fallback Bella para storytelling em PT-BR
 ```
 
 Publicacao:
@@ -510,6 +513,18 @@ pm2 logs timesmkt3-worker --lines 30
 # Limpar tudo
 pm2 delete all
 ```
+
+Atalho para ambiente local completo:
+
+```bash
+./startlocal.sh
+```
+
+O script:
+- valida `.env`
+- instala dependencias se faltarem
+- garante o container `redis`
+- inicia ou reinicia `timesmkt3-bot` e `timesmkt3-worker` no PM2 sem duplicar processos
 
 Depois no Telegram: `/campanha minha_campanha`
 
@@ -634,6 +649,8 @@ npm run media:status
 - Status por campanha: `/status` listando mais de uma campanha ativa ou enfileirada no mesmo chat.
 - Aprovações por campanha: respostas de aprovacao, `/continue`, `/rerun` e `/cancel` sempre vinculadas explicitamente a uma campanha, sem confundir contextos.
 - Publicacao em fila de producao para clips `yt-pub-lives`: permitir enfileirar clips para processamento e publicacao ordenada nesse destino.
+- Suporte a OpenRouter no v5: permitir usar OpenRouter no lugar do Claude para os agentes do pipeline (sem mexer no v4), habilitando `/model` com aliases `qwen36`, `qwen35` e `qwen25` e apontando para o `OPENROUTER_BASE_URL`/`OPENROUTER_API_KEY` configurados no `.env`.
+- Garantia de áudio em Stage 3: renderizadores quick/pro vão falhar explicitamente quando a narração exigida estiver ausente para que o bot reporte o erro em vez de entregar vídeos silenciosos.
 
 ---
 
