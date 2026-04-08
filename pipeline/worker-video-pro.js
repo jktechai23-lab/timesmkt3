@@ -1437,6 +1437,8 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
         const emptyOverlayViolations = [];
         for (let s = 0; s < plan.scenes.length; s++) {
           const scene = plan.scenes[s];
+          // Non-photo visual_types have their own content (card_title, chart_data, etc.)
+          if (scene.visual_type && scene.visual_type !== 'photo') continue;
           const overlay = String(scene?.text_overlay || '').trim();
           if (scene?.image_has_text === true) continue;
           if (shouldAllowEmptyOverlay(scene, plan, s)) continue;
