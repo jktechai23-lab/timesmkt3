@@ -185,17 +185,19 @@ function createWorkerVideoProHandler({
 
     const vf = (idx, suffix) => `${task_name}_video_${idx}${suffix}`;
     const vfFind = (idx, suffix) => {
-      const prefixed = path.resolve(projectRoot, output_dir, 'video', vf(idx, suffix));
-      if (fs.existsSync(prefixed)) return prefixed;
-      // Template-named scene plans: e.g. task_video_01_data_story_scene_plan_motion.json
+      // Template-named scene plans first: e.g. task_video_01_data_story_scene_plan_motion.json
       const tplName = job.data.video_template || 'auto';
       if (tplName !== 'auto') {
         const tplPrefixed = path.resolve(projectRoot, output_dir, 'video', `${task_name}_video_${idx}_${tplName}${suffix}`);
         if (fs.existsSync(tplPrefixed)) return tplPrefixed;
       }
+      const prefixed = path.resolve(projectRoot, output_dir, 'video', vf(idx, suffix));
+      if (fs.existsSync(prefixed)) return prefixed;
       const legacy = path.resolve(projectRoot, output_dir, 'video', `video_${idx}${suffix}`);
       if (fs.existsSync(legacy)) return legacy;
-      return prefixed;
+      return tplName !== 'auto'
+        ? path.resolve(projectRoot, output_dir, 'video', `${task_name}_video_${idx}_${tplName}${suffix}`)
+        : prefixed;
     };
     fs.mkdirSync(absVideoDir, { recursive: true });
 
