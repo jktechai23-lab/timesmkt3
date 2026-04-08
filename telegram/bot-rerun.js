@@ -157,6 +157,7 @@ function registerRerunCommands(bot, deps) {
       video_quick: videoQuick,
       video_pro: videoPro,
       video_draft: userRequestedDraft,
+      video_template: originalPayload?.video_template || 'auto',
       approval_modes: { stage1: 'auto', stage2: 'auto', stage3: 'auto', stage4: 'auto', stage5: 'auto' },
       notifications: true,
       skip_dependencies: true,
@@ -218,8 +219,11 @@ function registerRerunCommands(bot, deps) {
         + '<code>/rerun c13 imagens api</code>\n'
         + '<code>/rerun c13 2,3</code>\n'
         + '<code>/rerun c13 video pro cleanplan</code>\n'
-        + '<code>/rerun c13 video pro cleanall</code>\n\n'
+        + '<code>/rerun c13 video pro cleanall</code>\n'
+        + '<code>/rerun c13 video pro data_story</code>\n'
+        + '<code>/rerun c13 video pro template explainer</code>\n\n'
         + 'Fonte de imagens: <i>brand</i> (default), <i>screenshot</i>, <i>api</i>, <i>free</i>, <i>pasta</i>\n'
+        + 'Templates: <i>auto</i>, <i>data_story</i>, <i>explainer</i>, <i>carousel_narrativo</i>, <i>brand_film</i>\n'
         + 'Limpeza: <i>cleanplan</i>, <i>cleanimg</i>, <i>cleanaudio</i>, <i>cleanall</i>',
         { parse_mode: 'HTML' },
       );
@@ -258,6 +262,7 @@ function registerRerunCommands(bot, deps) {
     let videoQuick = false;
     let videoPro = false;
     let videoDraft = false;
+    let videoTemplate = origPayload.video_template || 'auto';
 
     const origPayloadPath = path.join(absOutputDir, 'campaign_payload.json');
     let origPayload = {};
@@ -281,6 +286,15 @@ function registerRerunCommands(bot, deps) {
       if (token === 'quick') { stageNumbers.add(3); videoQuick = true; continue; }
       if (token === 'pro') { stageNumbers.add(3); videoPro = true; continue; }
       if (token === 'draft') { videoDraft = true; continue; }
+
+      // Template tokens
+      const validTemplates = ['auto', 'data_story', 'explainer', 'carousel_narrativo', 'brand_film'];
+      if (token === 'template' && next && validTemplates.includes(next)) {
+        videoTemplate = next; i += 1; continue;
+      }
+      if (validTemplates.includes(token) && token !== 'auto') {
+        videoTemplate = token; continue;
+      }
 
       if (token === 'cleanplan' || token === 'limparplano') { cleanFlags.plan = true; continue; }
       if (token === 'cleanimg' || token === 'limparimagens') { cleanFlags.img = true; continue; }
@@ -364,6 +378,7 @@ function registerRerunCommands(bot, deps) {
       video_quick: videoQuick,
       video_pro: videoPro,
       video_draft: videoDraft,
+      video_template: videoTemplate,
       approval_modes: { stage1: 'auto', stage2: 'auto', stage3: 'auto', stage4: 'auto', stage5: 'auto' },
       notifications: true,
       skip_dependencies: true,
