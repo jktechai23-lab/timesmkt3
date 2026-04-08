@@ -783,6 +783,13 @@ RULES for visual_type:
 - When narration mentions a NUMBER, PERCENTAGE, or COMPARISON → prefer "chart" or "text_card" over "photo"
 - When narration lists steps or features → prefer "list"
 - When narration describes before/after → prefer "split"
+
+TEMPLATE OVERRIDE — text_overlay on photo scenes:
+- IGNORE the rule "image_has_text:true → text_overlay empty" when using a template
+- ALL photo scenes MUST have text_overlay with max 6 words (key phrase from narration)
+- Set image_has_text: false for ALL photo scenes
+- Text overlay must reinforce what the narrator is saying at that moment
+- This ensures every scene has visible content, even over carousel/banner images
 `;
 
     const TEMPLATE_INSTRUCTIONS = {
@@ -1181,7 +1188,9 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
             if (!replacement) continue;
 
             scene.image = replacement;
-            scene.image_has_text = /(_post|_stories|carousel_|oficial_|logo_|instagram|facebook|_ad\.|banner|calendar)/i.test(replacement);
+            // When using a template, always allow text overlay on photos (don't suppress based on filename)
+            const hasTemplate = (job.data.video_template || 'auto') !== 'auto';
+            scene.image_has_text = hasTemplate ? false : /(_post|_stories|carousel_|oficial_|logo_|instagram|facebook|_ad\.|banner|calendar)/i.test(replacement);
             fallbackFixes += 1;
           }
 
@@ -1266,6 +1275,26 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
           log(output_dir, 'video_pro', `Auto-fix: scene total ${totalSceneDur.toFixed(1)}s < ${videoDur}s — extending last scene "${lastScene.id}" by ${deficit.toFixed(1)}s`);
           lastScene.duration += deficit;
           fixes++;
+        }
+
+        // When using a template, force text_overlay on photo scenes
+        // The agent often sets image_has_text:true for carousel images, suppressing overlay
+        if (templateName !== 'auto') {
+          for (let s = 0; s < plan.scenes.length; s++) {
+            const scene = plan.scenes[s];
+            const vt = scene.visual_type || 'photo';
+            if (vt !== 'photo') continue;
+            if (scene.image_has_text && !scene.text_overlay) {
+              scene.image_has_text = false;
+              // Extract key words from narration as text overlay (max 6 words)
+              const narr = (scene.narration || '').trim();
+              if (narr) {
+                const words = narr.split(/\s+/);
+                scene.text_overlay = words.slice(0, 6).join(' ');
+              }
+              fixes++;
+            }
+          }
         }
 
         let missingNarration = 0;
