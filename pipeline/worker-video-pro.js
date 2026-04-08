@@ -60,6 +60,7 @@ function createWorkerVideoProHandler({
       video_count = 1, video_briefs = [],
       tts_provider = 'auto',
       video_formats = [],
+      video_template = 'auto',
       image_source: rawImageSource = 'brand',
       image_folder = null,
       image_background_color = null,
@@ -186,6 +187,12 @@ function createWorkerVideoProHandler({
     const vfFind = (idx, suffix) => {
       const prefixed = path.resolve(projectRoot, output_dir, 'video', vf(idx, suffix));
       if (fs.existsSync(prefixed)) return prefixed;
+      // Template-named scene plans: e.g. task_video_01_data_story_scene_plan_motion.json
+      const tplName = job.data.video_template || 'auto';
+      if (tplName !== 'auto') {
+        const tplPrefixed = path.resolve(projectRoot, output_dir, 'video', `${task_name}_video_${idx}_${tplName}${suffix}`);
+        if (fs.existsSync(tplPrefixed)) return tplPrefixed;
+      }
       const legacy = path.resolve(projectRoot, output_dir, 'video', `video_${idx}${suffix}`);
       if (fs.existsSync(legacy)) return legacy;
       return prefixed;
@@ -754,6 +761,67 @@ Read the full photography_plan.json for all shots.`;
       }
     }
 
+    // ── Template instructions ──────────────────────────────────────────────
+    const templateName = video_template || 'auto';
+    log(output_dir, 'video_pro', `Template: ${templateName}`);
+
+    const VISUAL_TYPE_SCHEMA = `
+VISUAL_TYPE — each scene MUST have a "visual_type" field. Available types:
+  - "photo": Raw photographic image + text overlay + camera motion (DEFAULT, current behavior)
+  - "chart": Data visualization. Required fields: "chart_type" (bar|line|pie|donut), "chart_title", "chart_data" (array of {label, value, color?}). Optional: "visual_colors" {bg, primary, accent, text, grid}. NO motion, NO image.
+  - "text_card": Typography card with styled background. Required: "card_title", "card_body". Optional: "card_bg" (color/gradient), "card_text_color", "card_accent". NO motion, NO image.
+  - "list": Numbered/bulleted items. Required: "list_title", "list_items" (array of strings or {text}). Optional: "list_numbered" (bool), "visual_colors". NO motion, NO image.
+  - "split": Side-by-side comparison. Required: "split_left" (image path), "split_right" (image path), "split_label_left", "split_label_right". Optional: "visual_colors". NO motion.
+
+RULES for visual_type:
+- "photo" scenes follow ALL existing rules (motion, text_overlay, image_has_text, etc.)
+- Non-photo scenes: do NOT include "image", "motion", or "image_has_text" fields
+- Non-photo scenes CAN have "text_overlay" for ASS subtitle (rendered separately from the visual)
+- chart_data example: [{"label":"Manual","value":30,"color":"#FF4444"},{"label":"Auto","value":70,"color":"#00C851"}]
+- When narration mentions a NUMBER, PERCENTAGE, or COMPARISON → prefer "chart" or "text_card" over "photo"
+- When narration lists steps or features → prefer "list"
+- When narration describes before/after → prefer "split"
+`;
+
+    const TEMPLATE_INSTRUCTIONS = {
+      auto: '', // No extra instructions — agent decides freely
+      data_story: `
+TEMPLATE: data_story — Data as the protagonist
+Your scene plan MUST follow this visual_type distribution:
+- ~60% of scenes: "chart" (bar, line, pie — show the data the narrator mentions)
+- ~20% of scenes: "text_card" (key insights, impact statements)
+- ~20% of scenes: "photo" (opening hook, transitions, CTA)
+Structure: hook (photo) → data point 1 (chart) → insight (text_card) → data point 2 (chart) → comparison (chart) → CTA (photo)
+CRITICAL: Every time the narrator mentions a number, percentage, or statistic, that scene MUST be visual_type "chart" with the actual data.`,
+      explainer: `
+TEMPLATE: explainer — Explain concepts and processes
+Your scene plan MUST follow this visual_type distribution:
+- ~40% of scenes: "list" or "text_card" (steps, definitions, key points)
+- ~30% of scenes: "photo" (context, examples, lifestyle)
+- ~30% of scenes: "chart" (supporting data)
+Structure: hook (photo) → problem (text_card) → step 1 (list) → evidence (chart) → step 2 (list) → benefit (text_card) → CTA (photo)
+CRITICAL: Process steps should use "list" type. Definitions and impact statements use "text_card".`,
+      carousel_narrativo: `
+TEMPLATE: carousel_narrativo — Visual narrative sequence
+Your scene plan MUST follow this visual_type distribution:
+- ~50% of scenes: "text_card" (large impactful text, quotes, key phrases)
+- ~30% of scenes: "photo" (emotional imagery, lifestyle, product)
+- ~20% of scenes: "chart" (data that supports the narrative)
+Structure: hook (text_card) → context (photo) → point 1 (text_card) → evidence (chart) → point 2 (text_card) → photo → CTA (text_card)
+CRITICAL: Text cards should have large, bold typography that carries the story forward. Each card = one impactful statement.`,
+      brand_film: `
+TEMPLATE: brand_film — Cinematic, photo-dominant
+Your scene plan MUST follow this visual_type distribution:
+- ~70% of scenes: "photo" (cinematic photography with strong motion)
+- ~20% of scenes: "text_card" (minimal, elegant text moments)
+- ~10% of scenes: "chart" (only when critical data is narrated)
+Structure: hook (photo) → story sequence (photo × 4-6) → insight (text_card) → data (chart) → story (photo × 3-4) → CTA (text_card)
+CRITICAL: This is a cinematic template — photos MUST have varied motion (zoom_in, pan_right, ken-burns, etc.). Text cards should be minimal and elegant.`,
+    };
+
+    const templateBlock = TEMPLATE_INSTRUCTIONS[templateName] || TEMPLATE_INSTRUCTIONS.auto;
+    const visualTypeInstructions = templateName === 'auto' ? '' : VISUAL_TYPE_SCHEMA + templateBlock;
+
     let scenePlanPrompt;
     if (sceneQuality === 'premium') {
       scenePlanPrompt = `You are the Video Editor Agent (Diretor de Edição). Follow the skill defined in skills/video-editor-agent/SKILL.md exactly.
@@ -854,10 +922,10 @@ ADVANCED SCENE FIELDS (per scene):
 - "motion.speed_ramp_stages": [0, 0.8, 0.2, 1.0] — speed ramp (input%, output% pairs)
 - "lens_transition": "chromatic-glitch" — types: rack-focus, whip-blur, defocus-refocus, chromatic-glitch
 
-Save each plan to: ${output_dir}/video/${task_name}_video_0N_scene_plan_motion.json
+Save each plan to: ${output_dir}/video/${task_name}_video_0N${templateName !== 'auto' ? '_' + templateName : ''}_scene_plan_motion.json
 
 The JSON schema is defined in SKILL.md — follow it exactly.
-
+${visualTypeInstructions}
 IMPORTANT: ONLY generate scene plan JSON files. Do NOT generate audio or run any render scripts.
 After saving all plans, print exactly: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
     } else {
@@ -911,7 +979,8 @@ RULES:
 - Never same motion 2x in row. font_size ≥60px
 - Last 3s = silent closing shot with URL/logo (narration: "")
 
-Save to: ${output_dir}/video/${task_name}_video_0N_scene_plan_motion.json
+Save to: ${output_dir}/video/${task_name}_video_0N${templateName !== 'auto' ? '_' + templateName : ''}_scene_plan_motion.json
+${visualTypeInstructions}
 Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
     }
 
@@ -1377,7 +1446,8 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
     for (let i = 1; i <= video_count; i++) {
       const idx = String(i).padStart(2, '0');
       const ts = videoTimestamp();
-      const proFilename = `${task_name}_pro_${idx}_${ts}.mp4`;
+      const tplSuffix = templateName !== 'auto' ? `_${templateName}` : '';
+      const proFilename = `${task_name}_pro_${idx}${tplSuffix}_${ts}.mp4`;
       const videoOutput = path.resolve(projectRoot, output_dir, 'video', proFilename);
       backupIfExists(videoOutput);
       const absScenePlan = vfFind(idx, '_scene_plan_motion.json');

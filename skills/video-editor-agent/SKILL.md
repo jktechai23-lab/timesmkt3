@@ -281,6 +281,115 @@ Salve em `<output_dir>/video/video_0N_scene_plan_motion.json`:
 
 ---
 
+## Visual Types (Templates)
+
+Cada cena DEVE ter um campo `visual_type`. O tipo padrão é `"photo"` (comportamento atual). Quando o worker envia um template específico, siga a distribuição indicada.
+
+### Tipos disponíveis
+
+#### `photo` (padrão)
+Imagem fotográfica + text overlay + motion. Campos: `image`, `motion`, `text_overlay`, `text_layout`. Segue TODAS as regras existentes.
+
+#### `chart` — Gráfico de dados
+Para quando a narração menciona números, porcentagens, estatísticas ou comparações quantitativas.
+
+```json
+{
+  "id": "data_01", "type": "data", "duration": 3.5,
+  "visual_type": "chart",
+  "chart_type": "bar",
+  "chart_title": "ROI médio de IA por setor",
+  "chart_data": [
+    { "label": "Atendimento", "value": 31, "color": "#00C851" },
+    { "label": "Vendas", "value": 24, "color": "#0099FF" },
+    { "label": "Marketing", "value": 16, "color": "#FFD700" }
+  ],
+  "visual_colors": { "bg": "#0D0D0D", "primary": "#0099FF", "accent": "#FFD700", "text": "#FFFFFF" },
+  "narration": "O ROI médio de IA hoje está em dezesseis por cento.",
+  "text_overlay": "ROI de IA",
+  "transition": "crossfade"
+}
+```
+
+Tipos de chart: `bar`, `line`, `pie`, `donut`. Sem `motion` nem `image`.
+
+#### `text_card` — Card tipográfico
+Para frases de impacto, citações, definições, insights-chave. Texto grande sobre fundo estilizado.
+
+```json
+{
+  "id": "insight_01", "type": "insight", "duration": 3,
+  "visual_type": "text_card",
+  "card_title": "Cada gargalo é uma automação vendável",
+  "card_body": "O mercado já está pagando por isso.",
+  "card_bg": "#0D0D0D",
+  "card_text_color": "#FFFFFF",
+  "card_accent": "#0099FF",
+  "narration": "Cada gargalo que você enxerga é uma automação vendável.",
+  "text_overlay": "",
+  "transition": "crossfade"
+}
+```
+
+Sem `motion` nem `image`. O texto do card substitui o text_overlay visual.
+
+#### `list` — Lista de itens
+Para passos, features, checklist, benefícios em sequência.
+
+```json
+{
+  "id": "features_01", "type": "product", "duration": 5,
+  "visual_type": "list",
+  "list_title": "5 Automações Essenciais",
+  "list_items": [
+    "Atendimento com IA 24/7",
+    "Qualificação automática de leads",
+    "Follow-up inteligente",
+    "Relatórios em tempo real",
+    "Escala sem contratar"
+  ],
+  "list_numbered": true,
+  "visual_colors": { "bg": "#0D0D0D", "accent": "#0099FF", "text": "#FFFFFF" },
+  "narration": "Existem cinco automações específicas que o mercado já conhece.",
+  "text_overlay": "",
+  "transition": "crossfade"
+}
+```
+
+Sem `motion` nem `image`.
+
+#### `split` — Comparação lado a lado
+Para antes/depois, comparações, contrastes visuais.
+
+```json
+{
+  "id": "compare_01", "type": "comparison", "duration": 4,
+  "visual_type": "split",
+  "split_left": "/path/to/before.jpg",
+  "split_right": "/path/to/after.jpg",
+  "split_label_left": "MANUAL",
+  "split_label_right": "COM IA",
+  "visual_colors": { "bg": "#0D0D0D", "accent": "#0099FF", "text": "#FFFFFF" },
+  "narration": "A diferença entre manual e automatizado é brutal.",
+  "text_overlay": "",
+  "transition": "crossfade"
+}
+```
+
+Sem `motion`. Requer dois caminhos de imagem.
+
+### Regras visual_type
+
+- Cenas `photo` seguem TODAS as regras existentes (motion, text_overlay, image_has_text)
+- Cenas não-photo NÃO incluem `image`, `motion`, `image_has_text`
+- Cenas não-photo PODEM ter `text_overlay` (renderizado via ASS subtitle, separado do visual)
+- Quando a narração menciona NÚMERO ou PORCENTAGEM → preferir `chart` ou `text_card`
+- Quando a narração lista passos ou features → preferir `list`
+- Quando a narração descreve antes/depois → preferir `split`
+- Se nenhum template for especificado, todas as cenas são `photo` (comportamento padrão)
+
+---
+
 ## Sinal de Conclusão
 
 Após salvar TODOS os arquivos JSON, imprima exatamente:

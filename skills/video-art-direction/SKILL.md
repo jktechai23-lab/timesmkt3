@@ -955,4 +955,53 @@ Antes de finalizar qualquer scene plan, verificar TODOS os itens:
 
 ---
 
+---
+
+## Visual Type Rendering por Estilo
+
+Quando uma cena usa `visual_type` diferente de `photo`, aplique as cores e tipografia do estilo ativo. Abaixo, as specs genéricas — cada preset pode override via `visual_colors` na cena.
+
+### Chart Rendering
+
+| Campo | Regra |
+|---|---|
+| `chart_data.color` | Se não definido na cena, usar cores do preset (primary, secondary, accent) |
+| Fundo | Cor `bg` do preset (geralmente dark) |
+| Font | Montserrat 700 para labels, tamanho proporcional ao formato |
+| Grid | `rgba(255,255,255,0.1)` para dark bg, `rgba(0,0,0,0.1)` para light bg |
+| Highlight | Número de destaque em accent color do preset, Oswald 900 |
+
+### Text Card Rendering
+
+| Campo | Regra |
+|---|---|
+| `card_bg` | Se não definido, usar bg do preset |
+| `card_text_color` | Se não definido, usar text color do preset |
+| `card_accent` | Se não definido, usar primary do preset |
+| Título | DM Serif Display ou font principal do preset, ~5% da altura |
+| Corpo | Lora ou font secundária do preset, ~2.8% da altura, opacity 0.85 |
+| Barra decorativa | Cor accent, 6px altura, no topo do card |
+
+### List Rendering
+
+| Campo | Regra |
+|---|---|
+| Bullets | Cor accent do preset, círculos de 2.5% da largura |
+| Números | Oswald 900, cor accent, quando `list_numbered: true` |
+| Texto | Montserrat 500, cor text do preset, 2.6% da altura |
+| Título | DM Serif Display, cor text do preset, 4% da altura |
+| Espaçamento | Gap de 2.5% da altura entre itens |
+
+### Split Rendering
+
+| Campo | Regra |
+|---|---|
+| Divisor | Linha vertical de 4px na cor accent do preset |
+| Labels | Oswald 900, uppercase, tracking 2px |
+| Label esquerdo | Cor text com opacity 0.6 |
+| Label direito | Cor accent do preset |
+| Altura labels | 8% da altura total do frame |
+
+---
+
 *Referência criada para timesmkt3 — Video Art Direction v1.0*

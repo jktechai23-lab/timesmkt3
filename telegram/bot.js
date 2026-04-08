@@ -1265,7 +1265,7 @@ bot.on('message:text', async (ctx) => {
         platform_targets: briefData.platforms || ['instagram', 'youtube', 'threads', 'facebook', 'tiktok', 'linkedin'],
         language: 'pt-BR',
         image_count: 5,
-        image_formats: ['carousel_1080x1080', 'story_1080x1920'],
+        image_formats: ['carousel_1080x1080'],
         video_count: 1,
         image_source: 'brand',
         image_model: runtimeEnv.KIE_DEFAULT_MODEL || (runtimeEnv.IMAGE_PROVIDER === 'pollinations' ? 'flux' : 'z-image'),

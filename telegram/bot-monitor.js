@@ -178,6 +178,7 @@ function startContinuousMonitor(deps) {
             ] },
           ];
 
+          const pendingPhases = [];
           for (const phaseNotif of phaseNotifs) {
             const logFile = path.join(logsDir, phaseNotif.file);
             if (!fs.existsSync(logFile)) continue;
@@ -188,8 +189,12 @@ function startContinuousMonitor(deps) {
               if (monitoredSignals.has(phaseKey)) continue;
               if (!logContent.includes(phase.key)) break;
               monitoredSignals.add(phaseKey);
-              bot.api.sendMessage(chatId, phase.msg, { parse_mode: 'HTML' }).catch(() => {});
+              pendingPhases.push(phase.msg);
             }
+          }
+          for (const msg of pendingPhases) {
+            await bot.api.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {});
+            if (pendingPhases.length > 1) await new Promise(r => setTimeout(r, 500));
           }
         }
 
@@ -271,7 +276,7 @@ function startContinuousMonitor(deps) {
 
           if (cv.notifications !== false) {
             const stageNames = { 1: 'Brief & Narrativa', 2: 'Imagens', 3: 'Video', 4: 'Plataformas', 5: 'Distribuição' };
-            bot.api.sendMessage(chatId, `✅ Etapa ${num} concluída — ${stageNames[num]}`, { parse_mode: 'HTML' }).catch(() => {});
+            await bot.api.sendMessage(chatId, `✅ Etapa ${num} concluída — ${stageNames[num]}`, { parse_mode: 'HTML' }).catch(() => {});
           }
 
           let canAdvance = true;

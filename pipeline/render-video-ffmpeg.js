@@ -29,6 +29,7 @@ const { execFileSync, execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { renderSceneVisual, closeBrowser } = require('./render-visual-png');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
@@ -153,7 +154,7 @@ function generateASS(scenes, sceneDurations, vidW, vidH) {
   ].join('\n');
 }
 
-function renderVideo(scenePlanPath, outputPath) {
+async function renderVideo(scenePlanPath, outputPath) {
   const absScenePlan = path.resolve(PROJECT_ROOT, scenePlanPath);
   const absOutput = path.resolve(PROJECT_ROOT, outputPath);
 
@@ -221,24 +222,55 @@ function renderVideo(scenePlanPath, outputPath) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ffmpeg-render-'));
 
   try {
+    // Step 0: Pre-render non-photo visual_types (chart, text_card, list, split) to PNG
+    const visualPNGs = {};
+    const hasVisualTypes = scenes.some(s => s.visual_type && s.visual_type !== 'photo');
+    if (hasVisualTypes) {
+      console.log('Pre-rendering visual_type scenes to PNG...');
+      for (let i = 0; i < scenes.length; i++) {
+        const vt = scenes[i].visual_type || 'photo';
+        if (vt !== 'photo') {
+          try {
+            const pngPath = await renderSceneVisual(scenes[i], vidW, vidH, tmpDir, i);
+            if (pngPath) {
+              visualPNGs[i] = pngPath;
+              console.log(`  Scene ${i} (${vt}): ${path.basename(pngPath)}`);
+            }
+          } catch (err) {
+            console.log(`  Scene ${i} (${vt}): render failed — ${err.message}, falling back to solid bg`);
+          }
+        }
+      }
+      await closeBrowser();
+      console.log(`Pre-rendered ${Object.keys(visualPNGs).length} visual scenes`);
+    }
+
     // Step 1: For each scene, create a scaled/padded image clip
     const segmentFiles = [];
 
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
       const duration = sceneDurations[i];
-      const imgSrc = scene.image
-        ? path.resolve(PROJECT_ROOT, scene.image)
+
+      // Use pre-rendered visual PNG if available, otherwise fall back to scene.image
+      const rawImgSrc = visualPNGs[i] || scene.image;
+      const imgSrc = rawImgSrc
+        ? path.resolve(PROJECT_ROOT, rawImgSrc)
         : null;
 
       const segOut = path.join(tmpDir, `seg_${String(i).padStart(2, '0')}.mp4`);
       segmentFiles.push(segOut);
       let needsSplitFilter = false;
 
+      // ── Visual type detection ──────────────────────────────────────────────
+      const visualType = scene.visual_type || 'photo';
+      const isGeneratedVisual = visualType !== 'photo' && visualPNGs[i];
+
       // ── Motion config ─────────────────────────────────────────────────────────
+      // Generated visuals (chart, text_card, list, split) use static display — no motion
       const motionConfig = scene.motion || {};
       const motionTypes  = ['zoom_in', 'zoom_out', 'pan_right', 'pan_left'];
-      const motionType   = motionConfig.type || motionTypes[i % motionTypes.length];
+      const motionType   = isGeneratedVisual ? 'static' : (motionConfig.type || motionTypes[i % motionTypes.length]);
       const zoomStart    = motionConfig.zoom_start ?? 1.0;
       const zoomEnd      = motionConfig.zoom_end   ?? 1.08;
 
@@ -254,7 +286,8 @@ function renderVideo(scenePlanPath, outputPath) {
       // ── image_type & has_text detection ──────────────────────────────────────
       const imageType = scene.image_type || 'raw';
       const isBanner  = imageType === 'banner';
-      const imageHasText = scene.image_has_text || scene.has_text ||
+      // Generated visuals already have their text baked in — treat like imageHasText
+      const imageHasText = isGeneratedVisual || scene.image_has_text || scene.has_text ||
         (imgSrc && /(_post|_stories|carousel_|oficial_|logo_|instagram|facebook|_ad\.|banner|calendar)/.test(imgSrc)) ||
         isBanner;
 
@@ -529,12 +562,10 @@ if (require.main === module) {
     console.error('Usage: node pipeline/render-video-ffmpeg.js <scene_plan.json> <output.mp4>');
     process.exit(1);
   }
-  try {
-    renderVideo(scenePlanArg, outputArg);
-  } catch (e) {
+  renderVideo(scenePlanArg, outputArg).catch(e => {
     console.error(`❌ Render failed: ${e.message}`);
     process.exit(1);
-  }
+  });
 }
 
 module.exports = { renderVideo };

@@ -175,7 +175,9 @@ function appendVideoPhaseLines(lines, logsDir, stageIcon, videoMode) {
     if (content.length > 0 || stageIcon === '▶️' || stageIcon === '🔄') {
       lines.push(`      <i>${videoLog.label}:</i>`);
       for (const phase of videoLog.allPhases) {
-        lines.push(`      ${phaseStatus.get(phase) || '⬜'} ${phase}`);
+        const icon = phaseStatus.get(phase);
+        if (!icon) break;
+        lines.push(`      ${icon} ${phase}`);
       }
     }
   }
@@ -189,11 +191,12 @@ function appendImagePhaseLines(lines, logsDir) {
     'Montar criativos', 'Validacao aspect ratio', 'Completo',
   ];
   const imgMarkers = [
-    { key: 'prompt', label: 'Gerar prompts', icon: '▶️' },
+    { key: 'Generating image prompt', label: 'Gerar prompts', icon: '▶️' },
+    { key: 'prompt saved', label: 'Gerar prompts', icon: '✅' },
     { key: 'Generating image', label: 'Gerar imagens', icon: '▶️' },
     { key: 'Image generated', label: 'Gerar imagens', icon: '✅' },
-    { key: 'approval', label: 'Aprovacao imagens', icon: '🔄' },
-    { key: 'approved', label: 'Aprovacao imagens', icon: '✅' },
+    { key: '[IMAGE_APPROVAL_NEEDED]', label: 'Aprovacao imagens', icon: '🔄' },
+    { key: 'Images approved', label: 'Aprovacao imagens', icon: '✅' },
     { key: 'Rendering HTML', label: 'Montar criativos', icon: '▶️' },
     { key: 'Screenshot saved', label: 'Montar criativos', icon: '✅' },
     { key: 'aspect ratio', label: 'Validacao aspect ratio', icon: '✅' },
@@ -203,8 +206,11 @@ function appendImagePhaseLines(lines, logsDir) {
   for (const marker of imgMarkers) {
     if (content.includes(marker.key)) imgStatus.set(marker.label, marker.icon);
   }
+  // Only show phases up to current progress (stop at first unseen phase)
   for (const phase of imgPhases) {
-    lines.push(`      ${imgStatus.get(phase) || '⬜'} ${phase}`);
+    const icon = imgStatus.get(phase);
+    if (!icon) break;
+    lines.push(`      ${icon} ${phase}`);
   }
 }
 

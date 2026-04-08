@@ -24,7 +24,7 @@ function buildPayload(taskName, opts, projectDir, today, env = process.env) {
     skip_image: opts['skip-image'] === true,
     skip_video: opts['skip-video'] === true,
     image_count: parseInt(opts.images || '5', 10),
-    image_formats: ['carousel_1080x1080', 'story_1080x1920'],
+    image_formats: ['carousel_1080x1080'],
     video_count: parseInt(opts.videos || '1', 10),
     image_source: opts['img-source'] || 'brand',
     image_background_color: opts['img-bg-color'] || null,
@@ -54,7 +54,7 @@ function buildConfigTable(payload, title, env = process.env) {
     image_source: 'brand', image_model: 'z-image', image_provider: 'KIE',
     narrator: 'rachel', video_duration: 60, style_preset: 'inema_hightech',
     photo_quality: 'simples', scene_quality: 'simples',
-    video_quick: true, video_pro: false, language: 'pt-BR',
+    video_quick: true, video_pro: false, video_template: 'auto', language: 'pt-BR',
     image_bg_mode: 'dark', notifications: true, approval: 'auto',
     tts_provider: 'auto',
   };
@@ -80,6 +80,7 @@ function buildConfigTable(payload, title, env = process.env) {
     { setting: 'Estilo', current: payload.style_preset || 'inema_hightech', def: DEFAULTS.style_preset, opts: 'inema_hightech / 01_hero_film / ...' },
     { setting: 'Dir.Foto', current: payload.photo_quality || 'simples', def: DEFAULTS.photo_quality, opts: 'simples / premium' },
     { setting: 'Scene plan', current: payload.scene_quality || 'simples', def: DEFAULTS.scene_quality, opts: 'simples / premium' },
+    { setting: 'Template', current: payload.video_template || 'auto', def: DEFAULTS.video_template, opts: 'auto / data_story / explainer / carousel_narrativo / brand_film' },
     { setting: 'Fundo quick', current: bgLabel, def: 'escuro', opts: 'escuro / blur' },
     { setting: 'Idioma', current: payload.language || 'pt-BR', def: DEFAULTS.language, opts: 'pt-BR / en' },
     { setting: 'Aprovação', current: approvalLabel, def: DEFAULTS.approval, opts: 'humano / auto' },
@@ -170,10 +171,11 @@ Return a JSON object with these fields:
   "skip_image": false,
   "skip_video": false,
   "image_count": 5,
-  "image_formats": ["carousel_1080x1080", "story_1080x1920"],
+  "image_formats": ["carousel_1080x1080"],
   "video_count": 1,
   "video_quick": true,
   "video_pro": false,
+  "video_template": "auto",
   "image_source": "brand",
   "image_background_color": null,
   "image_model": "${env.KIE_DEFAULT_MODEL || 'z-image'}",
@@ -193,9 +195,11 @@ Return a JSON object with these fields:
 Rules:
 - task_name: derive from the campaign theme, short and snake_case
 - image_count: default 5 for carousel; use what user says
+- image_formats: default ["carousel_1080x1080"] only. Add "story_1080x1920" if user mentions stories or 9:16. Add "reels_1080x1920" if user mentions reels or reel. Only add what is explicitly requested.
 - video_count: how many videos requested (default 1)
 - video_quick: always true unless user explicitly says "sem video quick" or "only pro"
 - video_pro: true if user says "video pro", "video profissional", "remotion", "pro", "both", "2 videos"
+- video_template: "auto" (default, agent decides freely), "data_story" (data/statistics focused), "explainer" (step-by-step, process), "carousel_narrativo" (text-card narrative), "brand_film" (cinematic, photo-dominant). Set based on user request: "template data_story", "template explicativo", "template narrativo", "template cinematografico/filme".
 - image_source: "brand" (or "marca") if user mentions brand images, project images, fotos da marca; "free" (or "gratis") if user mentions free stock photos, banco de imagens, pexels, unsplash, pixabay; "api" if user mentions AI generation, gerar imagens, criar imagens com IA; "folder" (or "pasta") if user specifies a folder path; "screenshot" (or "captura") if user mentions screenshot, captura de site, print do site, capturar pagina; "solid" (or "solido") if user wants no images, only solid/flat background. When screenshot, also populate "screenshot_urls" with any URLs mentioned. Default "brand".
 - image_background_color: only relevant when image_source is "solid". If user says just "solido", default to "#0D0D0D". If they specify a color, preserve it (e.g. "#112233").
 - image_model: only relevant when image_source is "api". Default is ALWAYS "${env.KIE_DEFAULT_MODEL || 'z-image'}" (from .env). Only change if the user explicitly requests a different model. Options: "z-image", "z-image-turbo", "flux-kontext-pro", "flux-kontext-max", "gpt-image-1".
@@ -226,6 +230,8 @@ Rules:
       payload.video_quick = true;
       payload.video_pro = payload.video_pro === true;
       payload.video_mode = payload.video_pro ? 'both' : 'quick';
+      const validTemplates = ['auto', 'data_story', 'explainer', 'carousel_narrativo', 'brand_film'];
+      payload.video_template = validTemplates.includes(payload.video_template) ? payload.video_template : 'auto';
       callback(payload);
     } catch {
       callback(null);
