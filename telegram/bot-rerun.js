@@ -262,11 +262,11 @@ function registerRerunCommands(bot, deps) {
     let videoQuick = false;
     let videoPro = false;
     let videoDraft = false;
-    let videoTemplate = origPayload.video_template || 'auto';
 
     const origPayloadPath = path.join(absOutputDir, 'campaign_payload.json');
     let origPayload = {};
     try { origPayload = JSON.parse(fs.readFileSync(origPayloadPath, 'utf-8')); } catch {}
+    let videoTemplate = origPayload.video_template || 'auto';
     let imageSource = origPayload.image_source || 'brand';
     let payloadImageFolder = origPayload.image_folder || null;
     let payloadImageBackgroundColor = origPayload.image_background_color || null;
