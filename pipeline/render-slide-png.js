@@ -293,6 +293,57 @@ function contentList(scene, preset, w, h) {
   `;
 }
 
+function contentCTA(scene, preset, w, h) {
+  const brand = scene.cta_brand || 'INEMA.CLUB';
+  const action = scene.cta_action || '';
+  const keyword = scene.keyword || '';
+
+  return `
+    <div style="
+      position:absolute; top:0; left:0; right:0; bottom:0;
+      z-index:10; display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      padding:${Math.round(w * 0.08)}px;
+    ">
+      ${keyword ? `<div style="
+        font-family:'${preset.fontBody}',sans-serif;
+        font-size:${Math.round(h * 0.022)}px;
+        font-weight:700; color:${preset.text}; opacity:0.6;
+        text-transform:uppercase; letter-spacing:0.15em;
+        margin-bottom:${Math.round(h * 0.03)}px;
+      ">${esc(keyword)}</div>` : ''}
+
+      <div style="
+        font-family:'${preset.fontAccent}',sans-serif;
+        font-size:${Math.round(h * 0.07)}px;
+        font-weight:900; color:${preset.text};
+        text-transform:uppercase; letter-spacing:0.03em;
+        text-align:center; line-height:1.1;
+        text-shadow: 0 4px 40px rgba(0,0,0,0.8), 0 0 80px rgba(0,0,0,0.5);
+        margin-bottom:${Math.round(h * 0.025)}px;
+      ">${esc(brand)}</div>
+
+      <div style="
+        width:${Math.round(w * 0.2)}px; height:4px;
+        background:linear-gradient(90deg, ${preset.primary}, ${preset.secondary});
+        border-radius:2px;
+        margin-bottom:${Math.round(h * 0.03)}px;
+      "></div>
+
+      ${action ? `<div style="
+        background:linear-gradient(135deg, ${preset.primary}, ${preset.secondary});
+        padding:${Math.round(h * 0.018)}px ${Math.round(w * 0.1)}px;
+        border-radius:9999px;
+        font-family:'${preset.fontBody}',sans-serif;
+        font-size:${Math.round(h * 0.026)}px;
+        font-weight:700; color:${preset.bg};
+        text-align:center;
+        box-shadow: 0 4px 30px rgba(0,153,255,0.4), 0 0 60px rgba(0,255,136,0.2);
+      ">${esc(action)}</div>` : ''}
+    </div>
+  `;
+}
+
 // ─── Main render function ───────────────────────────────────────────────
 
 /**
@@ -311,12 +362,19 @@ async function renderSlidePNG(scene, preset, bgImage, width, height, outputPath)
   const vt = scene.visual_type || 'photo';
   const keyword = scene.keyword || '';
 
+  // Detect CTA: explicit visual_type or scene.type contains 'cta'
+  const isCTA = vt === 'cta' || (scene.type || '').includes('cta');
+
   let contentHTML = '';
-  switch (vt) {
-    case 'chart': contentHTML = contentChart(scene, p, width, height); break;
-    case 'text_card': contentHTML = contentTextCard(scene, p, width, height); break;
-    case 'list': contentHTML = contentList(scene, p, width, height); break;
-    default: contentHTML = contentPhoto(scene, p, width, height); break;
+  if (isCTA) {
+    contentHTML = contentCTA(scene, p, width, height);
+  } else {
+    switch (vt) {
+      case 'chart': contentHTML = contentChart(scene, p, width, height); break;
+      case 'text_card': contentHTML = contentTextCard(scene, p, width, height); break;
+      case 'list': contentHTML = contentList(scene, p, width, height); break;
+      default: contentHTML = contentPhoto(scene, p, width, height); break;
+    }
   }
 
   const html = `<!DOCTYPE html>
@@ -334,7 +392,7 @@ async function renderSlidePNG(scene, preset, bgImage, width, height, outputPath)
 </style>
 </head><body>
   ${bgLayer(bgImage, p)}
-  ${keywordHTML(keyword, p, height)}
+  ${isCTA ? '' : keywordHTML(keyword, p, height)}
   ${contentHTML}
 </body></html>`;
 

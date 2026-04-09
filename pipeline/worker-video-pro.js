@@ -965,13 +965,14 @@ AUDIO: ${narrationNote}
 ${musicInstructions}
 
 For EACH scene, provide:
-- "visual_type": "photo" | "chart" | "text_card" | "list" (what kind of slide)
+- "visual_type": "photo" | "chart" | "text_card" | "list" | "cta" (what kind of slide)
 - "keyword": 1-3 words in CAPS (main topic/trigger — appears large at top of slide)
 - "duration": seconds (5-8s for chart/list, 2-3s for photo, ≥3s for CTA)
 - "narration": exact transcript spoken during this scene (or "" for silence)
 
 Per visual_type, also provide:
 - photo: no extra fields needed (system picks background image automatically)
+- cta: "cta_brand" (brand URL or name, e.g. "INEMA.CLUB"), "cta_action" (call to action text, e.g. "Agende sua análise gratuita")
 - chart: "chart_type" (bar/line/pie/donut), "chart_title", "chart_data" [{label,value}]
 - text_card: "card_title" (main phrase), "card_body" (supporting text)
 - list: "list_title", "list_items" (array of strings), "list_numbered" (true/false)
@@ -1004,7 +1005,8 @@ JSON structure:
 RULES:
 - 15-25 scenes. Sum of durations MUST equal ${videoDur}s exactly
 - First scene: "photo" with impactful keyword, ≤1.5s
-- Last scene: CTA with ≥3s + 3s silent hold after (narration: "")
+- Second-to-last scene: visual_type "cta" with cta_brand (URL/marca) + cta_action (texto de ação), ≥3s
+- Last scene: silent hold, visual_type "cta" with same cta_brand, duration 3s, narration ""
 - When narration mentions numbers/percentages → use "chart"
 - When narration lists steps/features → use "list"
 - When narration makes an impact statement → use "text_card"
