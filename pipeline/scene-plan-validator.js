@@ -113,8 +113,9 @@ function validateScenePlan(plan, opts = {}) {
         );
       }
 
-      // 4e. Corte com texto < 2s
-      if (text && dur < 2.0) {
+      // 4e. Corte com texto < 2s (exceto hook — hook é rápido de propósito)
+      const isHook = i === 0 || (scene.type || '').includes('hook');
+      if (text && dur < 2.0 && !isHook) {
         violations.push(
           `Cena ${i + 1} "${id}": duração ${dur}s com texto "${text}" — mínimo 2.0s para leitura.`
         );
