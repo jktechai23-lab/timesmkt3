@@ -48,7 +48,7 @@ function validateScenePlan(plan, opts = {}) {
         `Cena 1 "${first.id}": font_size ${firstFontSize}px < 120px. Hook deve ter texto GRANDE (120-140px).`
       );
     }
-    const firstText = (first.text_overlay || '').trim();
+    const firstText = String(first.text_overlay || '').trim();
     if (!firstText && (first.visual_type || 'photo') === 'photo') {
       violations.push(
         `Cena 1 "${first.id}": text_overlay vazio. Hook DEVE ter texto de impacto.`
@@ -96,7 +96,7 @@ function validateScenePlan(plan, opts = {}) {
 
     // 4c. Text overlay em cenas photo
     if (vt === 'photo') {
-      const text = (scene.text_overlay || '').trim();
+      const text = String(scene.text_overlay || '').trim();
       const isLast = i === scenes.length - 1;
       const isSilentClosing = isLast && !(scene.narration || '').trim();
 

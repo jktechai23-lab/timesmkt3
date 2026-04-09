@@ -116,7 +116,7 @@ function generateASS(scenes, sceneDurations, vidW, vidH) {
     // Skip text overlay if image already has embedded text
     const imgHasText = scene.image_has_text || scene.has_text ||
       (scene.image && /(_post|_stories|carousel_|oficial_|logo_|_ad\.|banner|calendar)/.test(scene.image));
-    const text       = (isSlide || isGeneratedVisualASS) ? '' : (imgHasText ? '' : (scene.text_overlay || '').trim());
+    const text       = (isSlide || isGeneratedVisualASS) ? '' : (imgHasText ? '' : String(scene.text_overlay || '').trim());
     const tl         = scene.text_layout || {};
     const fontSize   = tl.font_size || 80;
     const position   = tl.position  || 'bottom';
