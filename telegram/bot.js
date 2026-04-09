@@ -1677,33 +1677,40 @@ bot.start({ drop_pending_updates: true,
     console.log(`Projeto padrao: ${session.DEFAULT_PROJECT}`);
     console.log('Ctrl+C para parar.\n');
 
-    // Clear any leftover jobs from previous runs
+    // Step 1: Clear ALL campaign state (runningTask, campaignV3, etc.)
+    // This prevents the monitor from auto-advancing stale campaigns on restart
+    session.clearAllCampaignState();
+
+    // Step 2: Obliterate queue (remove any leftover jobs)
     await pipelineQueue.obliterate({ force: true }).catch((err) => console.error('[startup] Failed to clear queue:', err.message));
     console.log('[startup] Queue cleared.');
 
-    // Clear ephemeral flags that get stuck when bot restarts mid-processing
-    session.clearAllProcessingFlags();
-
-    // Check for existing workers (no longer killing them — they may be valid)
+    // Step 3: Check for existing workers
     if (isWorkerRunning()) {
       console.log('Worker already running — will use existing.');
     } else {
       console.log('No worker running — will spawn on demand.');
     }
 
-    startContinuousMonitor({
-      bot,
-      session,
-      projectRoot: PROJECT_ROOT,
-      monitoredSignals,
-      readChatContext,
-      writeImageApproval,
-      writeVideoApproval,
-      sendImageApprovalRequest,
-      sendVideoApprovalRequest,
-      sendStageApprovalRequest,
-      enqueueStage: _enqueueStage,
-      stages: STAGES,
-    });
+    // Step 4: Start monitor AFTER cleanup (5s delay to ensure no race conditions)
+    // The monitor reads logs and auto-advances stages — must not run before cleanup
+    console.log('[startup] Monitor starts in 5s...');
+    setTimeout(() => {
+      startContinuousMonitor({
+        bot,
+        session,
+        projectRoot: PROJECT_ROOT,
+        monitoredSignals,
+        readChatContext,
+        writeImageApproval,
+        writeVideoApproval,
+        sendImageApprovalRequest,
+        sendVideoApprovalRequest,
+        sendStageApprovalRequest,
+        enqueueStage: _enqueueStage,
+        stages: STAGES,
+      });
+      console.log('[startup] Monitor started.');
+    }, 5000);
   },
 });

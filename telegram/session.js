@@ -233,6 +233,18 @@ function clearAllProcessingFlags() {
   console.log('[session] Cleared processing flags on startup');
 }
 
+function clearAllCampaignState() {
+  for (const [, s] of sessions) {
+    s.runningTask = null;
+    s.campaignV3 = null;
+    s.activeCampaign = null;
+    s.pendingCampaign = null;
+    s.processing = false;
+  }
+  debouncedSave();
+  console.log('[session] Cleared all campaign state on startup');
+}
+
 module.exports = {
   get, setProject, setRunningTask, clearRunningTask,
   addToHistory, getHistory, clearHistory,
@@ -245,6 +257,7 @@ module.exports = {
   setCampaignV3, getCampaignV3, updateCampaignV3Stage, setCampaignV3Stage,
   setPendingStageApproval, clearPendingStageApproval, clearCampaignV3,
   clearAllProcessingFlags,
+  clearAllCampaignState,
   DEFAULT_PROJECT,
   loadFromDisk, saveToDisk,
 };
