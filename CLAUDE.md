@@ -276,7 +276,7 @@ O Video Pro suporta **templates** que controlam o `visual_type` de cada cena. Em
 | `auto` | Agente decide (padrão) | Livre |
 | `data_story` | Dados/estatísticas | ~60% chart, ~20% text_card, ~20% photo |
 | `explainer` | Explicar conceitos | ~40% list/text_card, ~30% photo, ~30% chart |
-| `carousel_narrativo` | Narrativa visual | ~50% text_card, ~30% photo, ~20% chart |
+| `narrativo` | Narrativa visual | ~50% text_card, ~30% photo, ~20% chart |
 | `brand_film` | Cinematográfico | ~70% photo, ~20% text_card, ~10% chart |
 
 **5 visual_types por cena:**

@@ -81,7 +81,7 @@ function buildConfigTable(payload, title, env = process.env) {
     { setting: 'Tipografia', current: payload.typography || 'auto', def: 'auto', opts: 'auto / serif / sans / condensed / mono' },
     { setting: 'Dir.Foto', current: payload.photo_quality || 'simples', def: DEFAULTS.photo_quality, opts: 'simples / premium' },
     { setting: 'Scene plan', current: payload.scene_quality || 'simples', def: DEFAULTS.scene_quality, opts: 'simples / premium' },
-    { setting: 'Template', current: payload.video_template || 'auto', def: DEFAULTS.video_template, opts: 'auto / data_story / explainer / carousel_narrativo / brand_film' },
+    { setting: 'Template', current: payload.video_template || 'auto', def: DEFAULTS.video_template, opts: 'auto / data_story / explainer / narrativo / brand_film' },
     { setting: 'Fundo quick', current: bgLabel, def: 'escuro', opts: 'escuro / blur' },
     { setting: 'Idioma', current: payload.language || 'pt-BR', def: DEFAULTS.language, opts: 'pt-BR / en' },
     { setting: 'Aprovação', current: approvalLabel, def: DEFAULTS.approval, opts: 'humano / auto' },
@@ -200,7 +200,7 @@ Rules:
 - video_count: how many videos requested (default 1)
 - video_quick: always true unless user explicitly says "sem video quick" or "only pro"
 - video_pro: true if user says "video pro", "video profissional", "remotion", "pro", "both", "2 videos"
-- video_template: "auto" (default, agent decides freely), "data_story" (data/statistics focused), "explainer" (step-by-step, process), "carousel_narrativo" (text-card narrative), "brand_film" (cinematic, photo-dominant). Set based on user request: "template data_story", "template explicativo", "template narrativo", "template cinematografico/filme".
+- video_template: "auto" (default, agent decides freely), "data_story" (data/statistics focused), "explainer" (step-by-step, process), "narrativo" (text-card narrative), "brand_film" (cinematic, photo-dominant). Set based on user request: "template data_story", "template explicativo", "template narrativo", "template cinematografico/filme".
 - image_source: "brand" (or "marca") if user mentions brand images, project images, fotos da marca; "free" (or "gratis") if user mentions free stock photos, banco de imagens, pexels, unsplash, pixabay; "api" if user mentions AI generation, gerar imagens, criar imagens com IA; "folder" (or "pasta") if user specifies a folder path; "screenshot" (or "captura") if user mentions screenshot, captura de site, print do site, capturar pagina; "solid" (or "solido") if user wants no images, only solid/flat background. When screenshot, also populate "screenshot_urls" with any URLs mentioned. Default "brand".
 - image_background_color: only relevant when image_source is "solid". If user says just "solido", default to "#0D0D0D". If they specify a color, preserve it (e.g. "#112233").
 - image_model: only relevant when image_source is "api". Default is ALWAYS "${env.KIE_DEFAULT_MODEL || 'z-image'}" (from .env). Only change if the user explicitly requests a different model. Options: "z-image", "z-image-turbo", "flux-kontext-pro", "flux-kontext-max", "gpt-image-1".
@@ -231,7 +231,7 @@ Rules:
       payload.video_quick = true;
       payload.video_pro = payload.video_pro === true;
       payload.video_mode = payload.video_pro ? 'both' : 'quick';
-      const validTemplates = ['auto', 'data_story', 'explainer', 'carousel_narrativo', 'brand_film'];
+      const validTemplates = ['auto', 'data_story', 'explainer', 'narrativo', 'brand_film'];
       payload.video_template = validTemplates.includes(payload.video_template) ? payload.video_template : 'auto';
       callback(payload);
     } catch {

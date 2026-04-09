@@ -473,7 +473,7 @@ bot.command('helpvideos', async (ctx) => {
     `  <code>auto</code> — agente decide (padrao)\n` +
     `  <code>data_story</code> — graficos e dados (~60% chart)\n` +
     `  <code>explainer</code> — passos e listas (~40% list/text)\n` +
-    `  <code>carousel_narrativo</code> — texto impacto (~50% text_card)\n` +
+    `  <code>narrativo</code> — texto impacto (~50% text_card)\n` +
     `  <code>brand_film</code> — cinematografico (~70% photo)\n\n` +
     `Uso: inclua "template data_story" na descricao da campanha.\n` +
     `Detalhes: /helptemplates\n\n` +
@@ -510,7 +510,7 @@ bot.command('helptemplates', async (ctx) => {
     `~40% listas/text cards, ~30% fotos, ~30% graficos\n` +
     `Ideal para: tutoriais, processos, passo a passo\n\n` +
 
-    `<b>carousel_narrativo</b> — Narrativa visual\n` +
+    `<b>narrativo</b> — Narrativa visual\n` +
     `~50% text cards, ~30% fotos, ~20% graficos\n` +
     `Ideal para: storytelling, frases de impacto\n\n` +
 

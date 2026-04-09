@@ -328,7 +328,7 @@ Todas as cenas sao `photo` com text overlay. Agente tem liberdade total. Comport
 
 **Estrutura tipo:** hook (photo) → problema (text_card) → passo 1 (list) → evidencia (chart) → passo 2 (list) → beneficio (text_card) → CTA (photo)
 
-### `carousel_narrativo` — Narrativa visual
+### `narrativo` — Narrativa visual
 | visual_type | % | Uso |
 |-------------|---|-----|
 | `text_card` | ~50% | Texto grande de impacto, cada card = 1 afirmacao |
@@ -458,16 +458,16 @@ quero um video pro sobre automacoes com IA, template data_story
 ```
 /rerun c49 3 pro data_story
 /rerun c49 video pro explainer
-/rerun c49 3 pro template carousel_narrativo
+/rerun c49 3 pro template narrativo
 ```
 
 **Templates disponiveis:**
-`auto`, `data_story`, `explainer`, `carousel_narrativo`, `brand_film`
+`auto`, `data_story`, `explainer`, `narrativo`, `brand_film`
 
 **Opcoes no briefing:**
 - Estilo: inema_hightech / neon_futurista / premium_minimal / energetico / emocional / corporate / streetwear / nature / retro / bold_pop / dark_dramatic / playful / editorial
 - Tipografia: auto / serif / sans / condensed / mono
-- Template: auto / data_story / explainer / carousel_narrativo / brand_film
+- Template: auto / data_story / explainer / narrativo / brand_film
 - Narrador: bella / rachel / domi / antoni / josh / arnold
 - TTS: auto / elevenlabs / fish / openai
 

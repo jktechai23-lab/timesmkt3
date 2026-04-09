@@ -827,8 +827,8 @@ Your scene plan MUST follow this visual_type distribution:
 - ~30% of scenes: "chart" (supporting data)
 Structure: hook (photo) → problem (text_card) → step 1 (list) → evidence (chart) → step 2 (list) → benefit (text_card) → CTA (photo)
 CRITICAL: Process steps should use "list" type. Definitions and impact statements use "text_card".`,
-      carousel_narrativo: `
-TEMPLATE: carousel_narrativo — Visual narrative sequence
+      narrativo: `
+TEMPLATE: narrativo — Visual narrative sequence
 Your scene plan MUST follow this visual_type distribution:
 - ~50% of scenes: "text_card" (large impactful text, quotes, key phrases)
 - ~30% of scenes: "photo" (emotional imagery, lifestyle, product)
@@ -1392,7 +1392,7 @@ Salve o JSON corrigido em: ${planPath}`;
           const tmpSlideDir = path.join(absVideoDir, `slides_${idx}`);
           fs.mkdirSync(tmpSlideDir, { recursive: true });
 
-          const pngMap = await renderAllSlides(plan, preset, absImgsDir, absAssetsDir, vidW, vidH, tmpSlideDir);
+          const pngMap = await renderAllSlides(plan, preset, absImgsDir, absAssetsDir, vidW, vidH, tmpSlideDir, templateName);
           slidePNGMaps[idx] = pngMap;
 
           // Update scene plan: point each scene.image to the slide PNG

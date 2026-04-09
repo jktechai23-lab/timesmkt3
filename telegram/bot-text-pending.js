@@ -578,7 +578,7 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
     }
     if (/^template\s+(.+)$/i.test(lower)) {
       const tpl = lower.match(/^template\s+(.+)$/i)[1].trim();
-      const validTemplates = ['auto', 'data_story', 'explainer', 'carousel_narrativo', 'brand_film'];
+      const validTemplates = ['auto', 'data_story', 'explainer', 'narrativo', 'brand_film'];
       if (validTemplates.includes(tpl)) {
         s.pendingCampaign.video_template = tpl;
         await replyAndRefresh(`✅ Template: <b>${tpl}</b>`);

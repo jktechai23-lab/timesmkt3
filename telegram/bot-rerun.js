@@ -223,7 +223,7 @@ function registerRerunCommands(bot, deps) {
         + '<code>/rerun c13 video pro data_story</code>\n'
         + '<code>/rerun c13 video pro template explainer</code>\n\n'
         + 'Fonte de imagens: <i>brand</i> (default), <i>screenshot</i>, <i>api</i>, <i>free</i>, <i>pasta</i>\n'
-        + 'Templates: <i>auto</i>, <i>data_story</i>, <i>explainer</i>, <i>carousel_narrativo</i>, <i>brand_film</i>\n'
+        + 'Templates: <i>auto</i>, <i>data_story</i>, <i>explainer</i>, <i>narrativo</i>, <i>brand_film</i>\n'
         + 'Limpeza: <i>cleanplan</i>, <i>cleanimg</i>, <i>cleanaudio</i>, <i>cleanall</i>',
         { parse_mode: 'HTML' },
       );
@@ -288,7 +288,7 @@ function registerRerunCommands(bot, deps) {
       if (token === 'draft') { videoDraft = true; continue; }
 
       // Template tokens — supports multiple templates in one command
-      const validTemplates = ['auto', 'data_story', 'explainer', 'carousel_narrativo', 'brand_film'];
+      const validTemplates = ['auto', 'data_story', 'explainer', 'narrativo', 'brand_film'];
       if (token === 'template' && next && validTemplates.includes(next)) {
         videoTemplates.push(next); i += 1; continue;
       }
