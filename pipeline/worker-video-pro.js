@@ -12,6 +12,7 @@ const {
 } = require('./video-audio');
 const { markAudioMissing } = require('./video-audio');
 const { validateScenePlan } = require('./scene-plan-validator');
+const { renderAllSlides, resolvePreset, closeBrowser: closeSlideBrowser } = require('./render-slide-png');
 
 function shouldAllowEmptyOverlay(scene, plan, index) {
   const narration = String(scene?.narration || '').trim();
@@ -540,7 +541,14 @@ RULES:
 
     const photoQuality = job.data.photo_quality || 'simples';
     const photoplanPath = path.resolve(projectRoot, output_dir, 'video', 'photography_plan.json');
-    if (!fs.existsSync(photoplanPath)) {
+    if (!fs.existsSync(photoplanPath) && photoQuality === 'simples') {
+      // Simples mode: skip Photography Director agent, use automatic plan
+      log(output_dir, 'video_pro', 'Phase 1.6: Auto photography plan (simples mode)...');
+      const fallbackPlan = buildFallbackPhotographyPlan(narrationTimings);
+      fallbackPlan.style_preset = job.data.style_preset || 'inema_hightech';
+      fs.writeFileSync(photoplanPath, JSON.stringify(fallbackPlan, null, 2), 'utf-8');
+      log(output_dir, 'video_pro', 'Photography plan created (auto/simples).');
+    } else if (!fs.existsSync(photoplanPath)) {
       const photoModel = photoQuality === 'premium' ? 'opus' : 'sonnet';
       const photoLabel = photoQuality === 'premium' ? 'Premium/Opus' : 'Simples/Sonnet';
       log(output_dir, 'video_pro', `Phase 1.6: Photography Director (${photoLabel})...`);
@@ -940,58 +948,67 @@ ${visualTypeInstructions}
 IMPORTANT: ONLY generate scene plan JSON files. Do NOT generate audio or run any render scripts.
 After saving all plans, print exactly: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
     } else {
-      scenePlanPrompt = `Create a scene plan JSON for a ${videoDur}s video ad.
+      scenePlanPrompt = `Create a CONTENT-FOCUSED scene plan for a ${videoDur}s video.
 
 Campaign: "${task_name}". Format: 9:16 (1080x1920). ${langInstruction}
 
-PHOTOGRAPHY PLAN (follow exactly — each shot has start_s/end_s timestamps you MUST respect):
-${photoPlanContent || photographyNote}
-
-CRITICAL — TIMESTAMP ANCHORING:
-The photography plan defines WHEN each shot appears (start_s → end_s). When you split a shot into multiple cuts:
-- All cuts from that shot MUST fit within its start_s → end_s window
-- Use the shot's image for all cuts within that window
-- text_overlay must match what the narrator is saying during that time window
-- Do NOT rearrange shots or move content between time windows
+YOU DECIDE ONLY CONTENT. The system handles layout, fonts, colors, and motion automatically.
 
 AUDIO: ${narrationNote}
 ${musicInstructions}
 
-Generate a JSON file with this structure:
+For EACH scene, provide:
+- "visual_type": "photo" | "chart" | "text_card" | "list" (what kind of slide)
+- "keyword": 1-3 words in CAPS (main topic/trigger — appears large at top of slide)
+- "duration": seconds (5-8s for chart/list, 2-3s for photo, ≥3s for CTA)
+- "narration": exact transcript spoken during this scene (or "" for silence)
+
+Per visual_type, also provide:
+- photo: no extra fields needed (system picks background image automatically)
+- chart: "chart_type" (bar/line/pie/donut), "chart_title", "chart_data" [{label,value}]
+- text_card: "card_title" (main phrase), "card_body" (supporting text)
+- list: "list_title", "list_items" (array of strings), "list_numbered" (true/false)
+
+DO NOT include: motion, text_layout, text_overlay, font_size, font_family, position, overlay, image, image_has_text. The system handles ALL rendering.
+
+JSON structure:
 {
   "titulo": "...", "video_length": ${videoDur}, "format": "9:16",
   "width": 1080, "height": 1920,
   "voice": "${job.data.narrator || 'bella'}",
-  "narration_file": "path or null", "music": "path or null", "music_volume": 0.15,
-  "color_grading": { "gamma": 1.05, "saturate": 1.1, "contrast": 1.15, "hueRotate": 10 },
-  "film_grain": { "intensity": 0, "monochromatic": true, "lightLeak": false },
-  "organic_shake": { "amplitude": 2, "frequency": 1 },
+  "narration_file": "${narrationTimings[0]?.file || 'null'}", "music": null, "music_volume": 0.15,
   "scenes": [
-    { "id": "hook_01", "type": "hook", "duration": 1.5,
-      "image": "/absolute/path.png", "image_has_text": true,
-      "narration": "exact transcript segment spoken during this scene",
-      "text_overlay": "", "motion": { "type": "breathe" },
-      "text_layout": { "font_size": 96, "font_weight": 900, "font_family": "Lora", "position": "top", "color": "#FFFFFF", "line_height": 1.0 },
-      "overlay": "dark", "overlay_opacity": 0.45,
-      "transition": "crossfade"
-    }
+    { "id": "hook_01", "type": "hook", "visual_type": "photo",
+      "keyword": "TRANSFORMAÇÃO", "duration": 1.5,
+      "narration": "E se sua empresa pudesse crescer enquanto você dorme?" },
+    { "id": "data_01", "type": "data", "visual_type": "chart",
+      "keyword": "ROI DE IA", "duration": 6,
+      "chart_type": "bar", "chart_title": "Retorno por setor",
+      "chart_data": [{"label":"Atendimento","value":31},{"label":"Vendas","value":24}],
+      "narration": "O ROI médio de IA hoje está em dezesseis por cento." },
+    { "id": "insight_01", "type": "insight", "visual_type": "text_card",
+      "keyword": "AUTOMAÇÃO", "duration": 5,
+      "card_title": "Cada gargalo é uma automação vendável",
+      "card_body": "O mercado já está pagando por isso.",
+      "narration": "Cada gargalo que você enxerga é uma automação vendável." }
   ]
 }
 
 RULES:
-- NEVER use images from ads/ (carousel/banner) — video pro uses ONLY raw photographic images
-- 25-40 cuts. First ≤1.5s, last ≥3s. Sum MUST equal ${videoDur}s exactly
-- Every scene MUST have "narration" field with the exact transcript being spoken (or "" for silent scenes)
-- text_overlay must reinforce what narrator says at that moment — NOT generic/unrelated text
-- image_has_text:true → text_overlay:"", motion:"breathe"
-- image_has_text:false → text_overlay with max 6 words
-- position "top" is DEFAULT. Use "center" only when image has face at top. NEVER "bottom"
-- font_family: "Lora"/"DM Serif Display" default. "Oswald"/"Bebas Neue" only for hooks (max 2-3)
-- Never same motion 2x in row. font_size ≥60px
-- Last 3s = silent closing shot with URL/logo (narration: "")
+- 15-25 scenes. Sum of durations MUST equal ${videoDur}s exactly
+- First scene: "photo" with impactful keyword, ≤1.5s
+- Last scene: CTA with ≥3s + 3s silent hold after (narration: "")
+- When narration mentions numbers/percentages → use "chart"
+- When narration lists steps/features → use "list"
+- When narration makes an impact statement → use "text_card"
+- When narration describes visually → use "photo"
+- chart/list scenes: 5-8s minimum (time to read)
+- photo scenes: 2-3s (visual rhythm)
+- Every scene MUST have "narration" field
+- keyword must be related to what's being said (1-3 words, impactful)
+${visualTypeInstructions}
 
 Save to: ${output_dir}/video/${task_name}_video_0N${templateName !== 'auto' ? '_' + templateName : ''}_scene_plan_motion.json
-${visualTypeInstructions}
 Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
     }
 
@@ -1326,6 +1343,59 @@ Salve o JSON corrigido em: ${planPath}`;
     process.stdout.write(`[VIDEO_PRO_PROGRESS] ${output_dir} render_start\n`);
     log(output_dir, 'video_pro', 'Starting video render...');
 
+    // ── Slide rendering (simples mode) ────────────────────────────────────
+    // Render all scenes as designed slides (HTML+CSS → Playwright → PNG)
+    // These PNGs replace the raw images — FFmpeg composites them into video
+    const useSlideSystem = sceneQuality === 'simples';
+    const slidePNGMaps = {}; // videoIdx → { sceneIdx → pngPath }
+
+    if (useSlideSystem) {
+      const styleDictPath = path.resolve(projectRoot, 'skills/video-engineering/style-dictionary.json');
+      const presetName = job.data.style_preset || 'inema_hightech';
+      const preset = resolvePreset(presetName, styleDictPath);
+      const absImgsDir = path.resolve(projectRoot, output_dir, 'imgs');
+      const absAssetsDir = path.resolve(projectRoot, project_dir, 'assets');
+
+      log(output_dir, 'video_pro', `Rendering slides (preset: ${presetName})...`);
+      process.stdout.write(`[VIDEO_PRO_PROGRESS] ${output_dir} rendering_slides\n`);
+
+      for (let i = 1; i <= video_count; i++) {
+        const idx = String(i).padStart(2, '0');
+        const planPath = vfFind(idx, '_scene_plan_motion.json');
+        if (!fs.existsSync(planPath)) continue;
+
+        try {
+          const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
+          const vidW = plan.width || 1080;
+          const vidH = plan.height || 1920;
+          const tmpSlideDir = path.join(absVideoDir, `slides_${idx}`);
+          fs.mkdirSync(tmpSlideDir, { recursive: true });
+
+          const pngMap = await renderAllSlides(plan, preset, absImgsDir, absAssetsDir, vidW, vidH, tmpSlideDir);
+          slidePNGMaps[idx] = pngMap;
+
+          // Update scene plan: point each scene.image to the slide PNG
+          // and mark as slide (so FFmpeg skips ASS subtitles and uses static display)
+          for (const [sceneIdx, pngPath] of Object.entries(pngMap)) {
+            plan.scenes[sceneIdx].image = pngPath;
+            plan.scenes[sceneIdx]._slide = true; // flag for FFmpeg
+          }
+          // Assign automatic motion cycling
+          const motionCycle = ['zoom_in', 'pan_right', 'drift', 'ken-burns-in', 'push-in', 'breathe'];
+          for (let s = 0; s < plan.scenes.length; s++) {
+            if (!plan.scenes[s].motion) {
+              plan.scenes[s].motion = { type: motionCycle[s % motionCycle.length], intensity: 'moderate' };
+            }
+          }
+          fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf-8');
+          log(output_dir, 'video_pro', `Slides rendered for video ${idx}: ${Object.keys(pngMap).length} slides`);
+        } catch (e) {
+          log(output_dir, 'video_pro', `Slide rendering failed for video ${idx}: ${e.message}`);
+        }
+      }
+      await closeSlideBrowser();
+    }
+
     for (let i = 1; i <= video_count; i++) {
       const idx = String(i).padStart(2, '0');
       const ts = videoTimestamp();
@@ -1341,17 +1411,22 @@ Salve o JSON corrigido em: ${planPath}`;
         continue;
       }
 
-      // Force ffmpeg when scene plan has non-photo visual_types (chart, text_card, list, split)
-      // Remotion doesn't support these yet — only ffmpeg has render-visual-png integration
+      // Simples mode with slides: always FFmpeg (slides are pre-rendered PNGs)
+      // Premium or visual_types: also FFmpeg (Remotion doesn't support visual_types yet)
       let renderer = getVideoRenderer('pro');
-      try {
-        const planData = JSON.parse(fs.readFileSync(absScenePlan, 'utf-8'));
-        const hasVisualTypes = (planData.scenes || []).some(s => s.visual_type && s.visual_type !== 'photo');
-        if (hasVisualTypes) {
-          renderer = renderFfmpeg;
-          log(output_dir, 'video_pro', `Scene plan has visual_types — using ffmpeg renderer`);
-        }
-      } catch {}
+      if (useSlideSystem) {
+        renderer = renderFfmpeg;
+        log(output_dir, 'video_pro', `Simples mode — using ffmpeg with slide PNGs`);
+      } else {
+        try {
+          const planData = JSON.parse(fs.readFileSync(absScenePlan, 'utf-8'));
+          const hasVisualTypes = (planData.scenes || []).some(s => s.visual_type && s.visual_type !== 'photo');
+          if (hasVisualTypes) {
+            renderer = renderFfmpeg;
+            log(output_dir, 'video_pro', `Scene plan has visual_types — using ffmpeg renderer`);
+          }
+        } catch {}
+      }
       const rendererName = renderer === renderRemotion ? 'Remotion' : 'ffmpeg';
       log(output_dir, 'video_pro', `Rendering video ${i}/${video_count} via ${rendererName}...`);
       try {

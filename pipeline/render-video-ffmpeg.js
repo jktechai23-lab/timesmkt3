@@ -110,12 +110,13 @@ function generateASS(scenes, sceneDurations, vidW, vidH) {
   for (let i = 0; i < scenes.length; i++) {
     const scene      = scenes[i];
     const dur        = sceneDurations[i];
-    // Skip ASS subtitle for non-photo visual_types — they have content baked into the PNG
+    // Skip ASS subtitle for slides (text baked in PNG) and non-photo visual_types
+    const isSlide = scene._slide === true;
     const isGeneratedVisualASS = scene.visual_type && scene.visual_type !== 'photo';
     // Skip text overlay if image already has embedded text
     const imgHasText = scene.image_has_text || scene.has_text ||
       (scene.image && /(_post|_stories|carousel_|oficial_|logo_|_ad\.|banner|calendar)/.test(scene.image));
-    const text       = isGeneratedVisualASS ? '' : (imgHasText ? '' : (scene.text_overlay || '').trim());
+    const text       = (isSlide || isGeneratedVisualASS) ? '' : (imgHasText ? '' : (scene.text_overlay || '').trim());
     const tl         = scene.text_layout || {};
     const fontSize   = tl.font_size || 80;
     const position   = tl.position  || 'bottom';

@@ -24,7 +24,38 @@ Antes de qualquer decisão criativa, leia **todos** estes arquivos:
 
 ---
 
-## Processo em 4 Fases
+## Modo Simples (Content-Only)
+
+Quando `scene_quality: "simples"`, o agente decide **APENAS conteúdo**. O sistema monta os slides automaticamente.
+
+**O que o agente decide:**
+- `visual_type` por cena (photo / chart / text_card / list)
+- `keyword` — 1-3 palavras em CAPS (gatilho/tópico — aparece grande no topo do slide)
+- `duration` — 5-8s para chart/list, 2-3s para photo, ≥3s para CTA
+- `narration` — trecho exato da fala
+- Conteúdo por tipo (chart_data, card_title, list_items, etc.)
+
+**O que o agente NÃO decide (sistema resolve):**
+- Motion (rotação automática: zoom_in → pan_right → drift → ken-burns)
+- Tipografia (fontes do preset de estilo)
+- Cores (paleta do preset)
+- Posição do texto (keyword no topo, conteúdo no centro)
+- Imagem de fundo (seleção automática das disponíveis)
+- Layout do slide (HTML+CSS gerado pelo sistema)
+
+**Regras:**
+- 15-25 cenas (menos cortes, mais tempo por cena)
+- chart/list: 5-8s mínimo (tempo de assimilar dados)
+- photo: 2-3s (ritmo visual)
+- Primeiro corte: photo com keyword impactante, ≤1.5s
+- Último corte: CTA ≥3s + 3s hold silencioso
+- Quando narração menciona números → chart
+- Quando narração lista passos → list
+- Quando narração faz afirmação forte → text_card
+
+---
+
+## Processo em 4 Fases (Modo Premium)
 
 ### FASE A: Análise e Roteiro (Script Planning)
 
