@@ -260,6 +260,8 @@ function startContinuousMonitor(deps) {
           let allDone = true;
           let anyStarted = activeAgents.length === 0;
           let sawAgentLog = false;
+          const runStartedAt = sess?.runningTask?.startedAt ? new Date(sess.runningTask.startedAt).getTime() : 0;
+
           for (const agent of activeAgents) {
             const logFile = path.join(logsDir, `${agent}.log`);
             if (!fs.existsSync(logFile)) {
@@ -268,8 +270,22 @@ function startContinuousMonitor(deps) {
             }
             anyStarted = true;
             sawAgentLog = true;
-            const tail = fs.readFileSync(logFile, 'utf-8').split('\n').filter((line) => line.trim()).slice(-3).join('\n');
-            if (!tail.includes('Completed successfully')) allDone = false;
+            const lines = fs.readFileSync(logFile, 'utf-8').split('\n').filter((line) => line.trim());
+            const tail = lines.slice(-3).join('\n');
+            if (!tail.includes('Completed successfully')) {
+              allDone = false;
+            } else if (runStartedAt > 0) {
+              // Check if the "Completed successfully" is from this run (after startedAt)
+              const completedLine = lines.reverse().find((line) => line.includes('Completed successfully'));
+              const tsMatch = completedLine && completedLine.match(/\[(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\]/);
+              if (tsMatch) {
+                const logTs = new Date(tsMatch[1]).getTime();
+                if (logTs < runStartedAt) {
+                  // This "Completed" is from a previous run — ignore
+                  allDone = false;
+                }
+              }
+            }
           }
 
           if (sawAgentLog && !allDone) {
