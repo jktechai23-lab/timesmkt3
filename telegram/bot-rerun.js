@@ -266,7 +266,7 @@ function registerRerunCommands(bot, deps) {
     const origPayloadPath = path.join(absOutputDir, 'campaign_payload.json');
     let origPayload = {};
     try { origPayload = JSON.parse(fs.readFileSync(origPayloadPath, 'utf-8')); } catch {}
-    let videoTemplate = origPayload.video_template || 'auto';
+    const videoTemplates = [];
     let imageSource = origPayload.image_source || 'brand';
     let payloadImageFolder = origPayload.image_folder || null;
     let payloadImageBackgroundColor = origPayload.image_background_color || null;
@@ -287,13 +287,13 @@ function registerRerunCommands(bot, deps) {
       if (token === 'pro') { stageNumbers.add(3); videoPro = true; continue; }
       if (token === 'draft') { videoDraft = true; continue; }
 
-      // Template tokens
+      // Template tokens — supports multiple templates in one command
       const validTemplates = ['auto', 'data_story', 'explainer', 'carousel_narrativo', 'brand_film'];
       if (token === 'template' && next && validTemplates.includes(next)) {
-        videoTemplate = next; i += 1; continue;
+        videoTemplates.push(next); i += 1; continue;
       }
       if (validTemplates.includes(token) && token !== 'auto') {
-        videoTemplate = token; continue;
+        videoTemplates.push(token); continue;
       }
 
       if (token === 'cleanplan' || token === 'limparplano') { cleanFlags.plan = true; continue; }
@@ -357,7 +357,11 @@ function registerRerunCommands(bot, deps) {
     if (videoPro) videoQuick = true;
     const videoMode = videoPro ? 'both' : 'quick';
 
-    const payload = {
+    // If no templates specified, default to 'auto'
+    if (videoTemplates.length === 0) videoTemplates.push(origPayload.video_template || 'auto');
+
+    // Build payloads — one per template (multiple templates = multiple video pro runs)
+    const payloads = videoTemplates.map((tpl) => ({
       task_name: campaignFolder,
       task_date: new Date().toISOString().slice(0, 10),
       project_dir: projectDir,
@@ -378,12 +382,15 @@ function registerRerunCommands(bot, deps) {
       video_quick: videoQuick,
       video_pro: videoPro,
       video_draft: videoDraft,
-      video_template: videoTemplate,
+      video_template: tpl,
       approval_modes: { stage1: 'auto', stage2: 'auto', stage3: 'auto', stage4: 'auto', stage5: 'auto' },
       notifications: true,
       skip_dependencies: true,
       skip_completed: false,
-    };
+    }));
+
+    // Use first payload for display
+    const payload = payloads[0];
 
     const stageLabelsMap = { 1: 'Brief', 2: 'Imagens', 3: 'Video', 4: 'Plataformas', 5: 'Distribuicao' };
     const stageLabel = sortedStages.map((stage) => (
@@ -393,10 +400,14 @@ function registerRerunCommands(bot, deps) {
     )).join(' + ');
 
     if (cleanFlags.plan || cleanFlags.img || cleanFlags.audio) {
-      payload.cleanFlags = cleanFlags;
+      for (const p of payloads) p.cleanFlags = cleanFlags;
     }
 
     const configLines = buildConfigTable(payload, `Reprocessar: ${campaignFolder}`);
+    if (videoTemplates.length > 1) {
+      configLines.push(`\n<b>Templates (${videoTemplates.length}):</b> ${videoTemplates.join(', ')}`);
+      configLines.push(`<i>Cada template gera um vídeo Pro separado (${videoTemplates.length} vídeos)</i>`);
+    }
     configLines.push(`\n<b>Etapas:</b> ${stageLabel}`);
     if (payload.cleanFlags) {
       const cleans = [];
@@ -410,7 +421,7 @@ function registerRerunCommands(bot, deps) {
     configLines.push('<code>não</code> — cancelar');
 
     await ctx.reply(configLines.join('\n'), { parse_mode: 'HTML' });
-    session.setPendingRerun(chatId, { payload, stages: sortedStages, campaignFolder });
+    session.setPendingRerun(chatId, { payloads, stages: sortedStages, campaignFolder });
   });
 }
 

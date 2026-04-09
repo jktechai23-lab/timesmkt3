@@ -251,8 +251,12 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
 
     if (!isConfirm) return false;
 
-    const { payload, stages: rerunStages, campaignFolder } = s.pendingRerun;
+    const { payloads: rerunPayloads, payload: singlePayload, stages: rerunStages, campaignFolder } = s.pendingRerun;
     session.clearPendingRerun(chatId);
+
+    // Support both old format (single payload) and new format (array of payloads)
+    const allPayloads = rerunPayloads || [singlePayload];
+    const payload = allPayloads[0];
 
     const videoMode = payload.video_pro && payload.video_quick ? 'Quick + Pro'
       : payload.video_pro ? 'Pro' : 'Quick';
@@ -358,7 +362,19 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
           if (fs.existsSync(logFile)) fs.unlinkSync(logFile);
         }
 
-        await enqueueStage(payload, agentNames);
+        // Multiple templates: enqueue video_pro once per template
+        if (stageNum === 3 && allPayloads.length > 1) {
+          // Enqueue quick once with first payload
+          await enqueueStage(payload, agentNames.filter(a => a !== 'video_pro'));
+          // Enqueue video_pro for each template
+          for (const tplPayload of allPayloads) {
+            await enqueueStage(tplPayload, ['video_pro']);
+            const tpl = tplPayload.video_template || 'auto';
+            await ctx.reply(`🎬 Video Pro template <b>${tpl}</b> enfileirado`).catch(() => {});
+          }
+        } else {
+          await enqueueStage(payload, agentNames);
+        }
 
         const expected = activeAgents.length;
         await new Promise((resolve) => {
