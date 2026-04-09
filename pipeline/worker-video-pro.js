@@ -11,6 +11,7 @@ const {
   validateNarrationFile,
 } = require('./video-audio');
 const { markAudioMissing } = require('./video-audio');
+const { validateScenePlan } = require('./scene-plan-validator');
 
 function shouldAllowEmptyOverlay(scene, plan, index) {
   const narration = String(scene?.narration || '').trim();
@@ -1168,295 +1169,139 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
       }
     }
 
-    const fallbackAssets = collectFallbackVisualAssets();
-    if (fallbackAssets.length > 0) {
-      for (let i = 1; i <= video_count; i++) {
-        const idx = String(i).padStart(2, '0');
-        const planPath = vfFind(idx, '_scene_plan_motion.json');
-        if (!fs.existsSync(planPath)) continue;
+    // ── Phase 2.5: Validation loop (replaces auto-fix) ─────────────────
+    // Validates scene plan rules and sends violations back to the agent for correction.
+    // Max 3 attempts. No side effects — the agent decides how to fix.
+    log(output_dir, 'video_pro', 'Phase 2.5: Validation loop...');
+
+    // Read global error memory for prompt enrichment
+    const globalErrorsPath = path.resolve(projectRoot, project_dir, 'video_error_patterns.json');
+    let errorPatternsHint = '';
+    try {
+      if (fs.existsSync(globalErrorsPath)) {
+        const patterns = JSON.parse(fs.readFileSync(globalErrorsPath, 'utf-8'));
+        const top5 = (patterns.patterns || [])
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5)
+          .map(p => `- ${p.error} (ocorreu ${p.count}x)`);
+        if (top5.length > 0) {
+          errorPatternsHint = `\n\nERROS FREQUENTES EM CAMPANHAS ANTERIORES (evite estes):\n${top5.join('\n')}`;
+        }
+      }
+    } catch {}
+
+    const validationHistoryPath = path.resolve(projectRoot, output_dir, 'video', 'validation_history.json');
+    const validationHistory = { attempts: [] };
+
+    for (let i = 1; i <= video_count; i++) {
+      const idx = String(i).padStart(2, '0');
+      const planPath = vfFind(idx, '_scene_plan_motion.json');
+      if (!fs.existsSync(planPath)) continue;
+
+      const MAX_VALIDATION_ATTEMPTS = 3;
+
+      for (let attempt = 1; attempt <= MAX_VALIDATION_ATTEMPTS; attempt++) {
+        let plan;
+        try {
+          plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
+        } catch (e) {
+          log(output_dir, 'video_pro', `Validation: cannot parse scene plan ${idx}: ${e.message}`);
+          break;
+        }
+
+        const { valid, violations } = validateScenePlan(plan, {
+          videoDur,
+          projectRoot,
+          outputDir: output_dir,
+        });
+
+        // Save to validation history
+        validationHistory.attempts.push({
+          attempt,
+          video: idx,
+          violations: violations.slice(0, 20),
+          timestamp: new Date().toISOString(),
+        });
+
+        const totalDur = plan.scenes.reduce((sum, s) => sum + (s.duration || 0), 0);
+        log(output_dir, 'video_pro', `Validation attempt ${attempt}: ${violations.length} violations, ${plan.scenes.length} cuts, ${totalDur.toFixed(1)}s`);
+
+        if (valid) {
+          log(output_dir, 'video_pro', `Plan validated — ${plan.scenes.length} cuts, ${totalDur.toFixed(1)}s (target: ${videoDur}s)`);
+          process.stdout.write(`[VIDEO_PRO_VALIDATION] ${output_dir} validated attempt:${attempt}\n`);
+          break;
+        }
+
+        // Log violations
+        for (const v of violations.slice(0, 10)) {
+          log(output_dir, 'video_pro', `  ⚠ ${v}`);
+        }
+        if (violations.length > 10) {
+          log(output_dir, 'video_pro', `  ... e mais ${violations.length - 10} violações`);
+        }
+
+        process.stdout.write(`[VIDEO_PRO_VALIDATION] ${output_dir} attempt:${attempt} violations:${violations.length}\n`);
+
+        if (attempt === MAX_VALIDATION_ATTEMPTS) {
+          log(output_dir, 'video_pro', `Validation: max attempts reached with ${violations.length} remaining violations — proceeding with current plan`);
+          break;
+        }
+
+        // Send violations back to the agent for correction
+        log(output_dir, 'video_pro', `Sending ${violations.length} violations to agent for correction (attempt ${attempt + 1})...`);
+        const violationsList = violations.slice(0, 15).map((v, j) => `${j + 1}. ${v}`).join('\n');
+        const fixPrompt = `O scene plan em ${planPath} tem ${violations.length} violações que DEVEM ser corrigidas:
+
+${violationsList}
+${violations.length > 15 ? `\n... e mais ${violations.length - 15} violações.\n` : ''}
+INSTRUÇÕES:
+1. Leia o arquivo ${planPath}
+2. Corrija CADA violação listada acima
+3. Salve o arquivo corrigido no MESMO path
+4. NÃO mude cenas que não têm violação
+5. Mantenha a estrutura JSON intacta
+${errorPatternsHint}
+
+Salve o JSON corrigido em: ${planPath}`;
 
         try {
-          const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
-          let fallbackFixes = 0;
-
-          for (let s = 0; s < plan.scenes.length; s++) {
-            const scene = plan.scenes[s];
-            // Skip non-photo visual_types — they don't need image files
-            if (scene.visual_type && scene.visual_type !== 'photo') continue;
-            if (scene.image && fs.existsSync(scene.image)) continue;
-
-            const replacement = pickFallbackAssetForScene(fallbackAssets, s);
-            if (!replacement) continue;
-
-            scene.image = replacement;
-            // When using a template, always allow text overlay on photos (don't suppress based on filename)
-            const hasTemplate = (job.data.video_template || 'auto') !== 'auto';
-            scene.image_has_text = hasTemplate ? false : /(_post|_stories|carousel_|oficial_|logo_|instagram|facebook|_ad\.|banner|calendar)/i.test(replacement);
-            fallbackFixes += 1;
-          }
-
-          if (fallbackFixes > 0) {
-            fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf-8');
-            log(output_dir, 'video_pro', `Fallback: assigned ${fallbackFixes} existing project images in video ${idx}`);
-          }
+          await runClaude(fixPrompt, 'video_pro', output_dir, 300000, { model: 'sonnet' });
+          await job.extendLock(job.token, 900000).catch(() => {});
         } catch (e) {
-          log(output_dir, 'video_pro', `Fallback image fix failed for video ${idx}: ${e.message}`);
+          log(output_dir, 'video_pro', `Validation fix attempt ${attempt + 1} failed: ${e.message}`);
+          break;
         }
       }
     }
 
-    for (let i = 1; i <= video_count; i++) {
-      const idx = String(i).padStart(2, '0');
-      const planPath = vfFind(idx, '_scene_plan_motion.json');
-      if (!fs.existsSync(planPath)) continue;
+    // Save validation history
+    try {
+      fs.writeFileSync(validationHistoryPath, JSON.stringify(validationHistory, null, 2), 'utf-8');
+    } catch {}
 
-      try {
-        const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
-        let fixes = 0;
-        const motionTypes = ['zoom_in', 'zoom_out', 'pan_right', 'pan_left'];
-        const positions = ['top', 'center', 'bottom'];
-
-        if (!job.data.carousel_in_video) {
-          for (let s = 0; s < plan.scenes.length; s++) {
-            // Skip non-photo visual_types — they don't use image files
-            if (plan.scenes[s].visual_type && plan.scenes[s].visual_type !== 'photo') continue;
-            const imgPath = plan.scenes[s].image || '';
-            if (/\/ads\/|carousel_|_carousel|banner_/i.test(imgPath)) {
-              const absImgsDirFix = path.resolve(projectRoot, output_dir, 'imgs');
-              const absAssetsDirFix = path.resolve(projectRoot, project_dir, 'assets');
-              const imgExts2 = ['.jpg', '.jpeg', '.png', '.webp'];
-              const findReplacement = (dir) => {
-                if (!fs.existsSync(dir)) return null;
-                const imgs = fs.readdirSync(dir).filter(f => imgExts2.includes(path.extname(f).toLowerCase()));
-                return imgs.length > 0 ? path.join(dir, imgs[s % imgs.length]) : null;
-              };
-              const replacement = findReplacement(absImgsDirFix) || findReplacement(absAssetsDirFix);
-              if (replacement) {
-                log(output_dir, 'video_pro', `Auto-fix: replaced carousel image "${path.basename(imgPath)}" → "${path.basename(replacement)}" in scene ${plan.scenes[s].id}`);
-                plan.scenes[s].image = replacement;
-                plan.scenes[s].image_has_text = false;
-                if (!plan.scenes[s].text_overlay) plan.scenes[s].text_overlay = plan.scenes[s].id.replace(/_/g, ' ').toUpperCase();
-                fixes++;
-              }
-            }
-          }
-        }
-
-        for (let s = 1; s < plan.scenes.length; s++) {
-          const prev = plan.scenes[s - 1].motion?.type;
-          const curr = plan.scenes[s].motion?.type;
-          if (prev && curr && prev === curr) {
-            const alts = motionTypes.filter(m => m !== curr);
-            plan.scenes[s].motion.type = alts[s % alts.length];
-            fixes++;
-          }
-        }
-
-        for (let s = 2; s < plan.scenes.length; s++) {
-          const p1 = plan.scenes[s - 2].text_layout?.position;
-          const p2 = plan.scenes[s - 1].text_layout?.position;
-          const p3 = plan.scenes[s].text_layout?.position;
-          if (p1 && p2 && p3 && p1 === p2 && p2 === p3) {
-            const alts = positions.filter(p => p !== p3);
-            plan.scenes[s].text_layout.position = alts[s % alts.length];
-            fixes++;
-          }
-        }
-
-        const totalSceneDur = plan.scenes.reduce((sum, scene) => sum + scene.duration, 0);
-        if (plan.video_length && plan.video_length < videoDur) {
-          log(output_dir, 'video_pro', `Auto-fix: video_length ${plan.video_length}s → ${videoDur}s (audio + 3s)`);
-          plan.video_length = videoDur;
-          fixes++;
-        }
-
-        if (totalSceneDur < videoDur - 1) {
-          const deficit = videoDur - totalSceneDur;
-          const lastScene = plan.scenes[plan.scenes.length - 1];
-          log(output_dir, 'video_pro', `Auto-fix: scene total ${totalSceneDur.toFixed(1)}s < ${videoDur}s — extending last scene "${lastScene.id}" by ${deficit.toFixed(1)}s`);
-          lastScene.duration += deficit;
-          fixes++;
-        }
-
-        // When using a template, force text_overlay on photo scenes
-        // The agent often sets image_has_text:true for carousel images, suppressing overlay
-        if (templateName !== 'auto') {
-          for (let s = 0; s < plan.scenes.length; s++) {
-            const scene = plan.scenes[s];
-            const vt = scene.visual_type || 'photo';
-            if (vt !== 'photo') continue;
-            if (scene.image_has_text && !scene.text_overlay) {
-              scene.image_has_text = false;
-              // Extract key words from narration as text overlay (max 6 words)
-              const narr = (scene.narration || '').trim();
-              if (narr) {
-                const words = narr.split(/\s+/);
-                scene.text_overlay = words.slice(0, 6).join(' ');
-              }
-              fixes++;
-            }
-          }
-        }
-
-        let missingNarration = 0;
-        for (let s = 0; s < plan.scenes.length; s++) {
-          if (plan.scenes[s].narration === undefined) {
-            plan.scenes[s].narration = '';
-            missingNarration++;
-          }
-        }
-        if (missingNarration > 0) {
-          log(output_dir, 'video_pro', `Auto-fix: added missing "narration" field to ${missingNarration} scenes`);
-          fixes += missingNarration;
-        }
-
-        if (fixes > 0) {
-          fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf-8');
-          log(output_dir, 'video_pro', `Auto-fixed ${fixes} rule violations in video ${idx}`);
-        }
-
-        const finalDur = plan.scenes.reduce((sum, scene) => sum + scene.duration, 0);
-        log(output_dir, 'video_pro', `Video ${idx}: ${plan.scenes.length} cuts, ${finalDur.toFixed(1)}s total (target: ${videoDur}s)`);
-      } catch (e) {
-        log(output_dir, 'video_pro', `Validation error video ${idx}: ${e.message}`);
+    // Update global error patterns
+    try {
+      let globalPatterns = { patterns: [] };
+      if (fs.existsSync(globalErrorsPath)) {
+        globalPatterns = JSON.parse(fs.readFileSync(globalErrorsPath, 'utf-8'));
       }
-    }
-
-    log(output_dir, 'video_pro', 'Phase 2.5: Typography validation...');
-    for (let i = 1; i <= video_count; i++) {
-      const idx = String(i).padStart(2, '0');
-      const planPath = vfFind(idx, '_scene_plan_motion.json');
-      if (!fs.existsSync(planPath)) continue;
-
-      try {
-        const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
-        let typoFixes = 0;
-
-        for (let s = 0; s < plan.scenes.length; s++) {
-          const scene = plan.scenes[s];
-
-          if (scene.text_overlay && scene.text_layout) {
-            const minSize = scene.type === 'hook' ? 120 : scene.type === 'cta' ? 96 : 80;
-            if (scene.text_layout.font_size && scene.text_layout.font_size < minSize) {
-              scene.text_layout.font_size = minSize;
-              typoFixes++;
-            }
-            if (scene.text_layout.font_weight && scene.text_layout.font_weight < 700) {
-              scene.text_layout.font_weight = 700;
-              typoFixes++;
-            }
-          }
-
-          const imgPath = scene.image || '';
-          if (!scene.image_has_text && imgPath &&
-              /(_post|_stories|carousel_|oficial_|logo_|instagram|facebook|_ad\.|banner|calendar)/i.test(imgPath)) {
-            scene.image_has_text = true;
-            typoFixes++;
-          }
-          if (scene.image_has_text === true) {
-            if (scene.text_overlay) {
-              scene.text_overlay = '';
-              typoFixes++;
-            }
-            if (scene.motion) {
-              const mt = typeof scene.motion === 'object' ? scene.motion.type : scene.motion;
-              if (mt && !['breathe', 'static', 'none'].includes(mt)) {
-                if (typeof scene.motion === 'object') scene.motion.type = 'breathe';
-                else scene.motion = { type: 'breathe' };
-                typoFixes++;
-              }
-            }
-          }
-
-          if (scene.text_layout?.position === 'bottom') {
-            scene.text_layout.position = 'top';
-            typoFixes++;
-          }
-          if (scene.text_position === 'bottom') {
-            scene.text_position = 'top';
-            typoFixes++;
-          }
-
-          if (scene.text_overlay) {
-            const words = scene.text_overlay.trim().split(/\s+/);
-            if (words.length > 6) {
-              scene.text_overlay = words.slice(0, 6).join(' ');
-              typoFixes++;
-            }
-          }
-
-          if (scene.text_overlay && !scene.overlay) {
-            scene.overlay = 'dark';
-            scene.overlay_opacity = 0.45;
-            typoFixes++;
-          }
-
-          if ((plan.format === '9:16' || plan.height > plan.width) && scene.image_has_text) {
-            const imgPath2 = scene.image || '';
-            if (imgPath2 && fs.existsSync(imgPath2)) {
-              try {
-                const dims = getImageDimensions(imgPath2);
-                if (dims && dims.width && dims.height) {
-                  const ratio = dims.width / dims.height;
-                  if (ratio > 1.2) {
-                    const absImgsDirFix = path.resolve(projectRoot, output_dir, 'imgs');
-                    const absAssetsDirFix = path.resolve(projectRoot, project_dir, 'assets');
-                    const imgExts3 = ['.jpg', '.jpeg', '.png', '.webp'];
-                    const findPortrait = (dir) => {
-                      if (!fs.existsSync(dir)) return null;
-                      const imgs = fs.readdirSync(dir)
-                        .filter(f => imgExts3.includes(path.extname(f).toLowerCase()))
-                        .map(f => ({ name: f, path: path.join(dir, f) }))
-                        .filter(f => {
-                          const d = getImageDimensions(f.path);
-                          return d && d.height >= d.width;
-                        });
-                      return imgs.length > 0 ? imgs[s % imgs.length].path : null;
-                    };
-                    const replacement = findPortrait(absImgsDirFix) || findPortrait(absAssetsDirFix);
-                    if (replacement) {
-                      log(output_dir, 'video_pro', `Auto-fix: replaced landscape has_text image "${path.basename(imgPath2)}" (${dims.width}x${dims.height}) → "${path.basename(replacement)}" in scene ${scene.id}`);
-                      scene.image = replacement;
-                      typoFixes++;
-                    } else {
-                      log(output_dir, 'video_pro', `WARN: scene ${scene.id} uses landscape has_text image — no portrait replacement found`);
-                    }
-                  }
-                }
-              } catch {}
-            }
-          }
-        }
-
-        if (typoFixes > 0) {
-          fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf-8');
-          log(output_dir, 'video_pro', `Typography: fixed ${typoFixes} violations in video ${idx}`);
+      const allViolations = validationHistory.attempts.flatMap(a => a.violations);
+      for (const v of allViolations) {
+        // Normalize violation to pattern (remove scene-specific IDs)
+        const pattern = v.replace(/Cena \d+ "[^"]+"/g, 'Cena N').replace(/"[^"]+"/g, '"..."').replace(/\d+\.?\d*s/g, 'Xs').replace(/\d+px/g, 'Xpx');
+        const existing = globalPatterns.patterns.find(p => p.error === pattern);
+        if (existing) {
+          existing.count += 1;
+          existing.last_seen = new Date().toISOString().slice(0, 10);
         } else {
-          log(output_dir, 'video_pro', `Typography: all checks passed for video ${idx}`);
+          globalPatterns.patterns.push({ error: pattern, count: 1, last_seen: new Date().toISOString().slice(0, 10) });
         }
-
-        const emptyOverlayViolations = [];
-        for (let s = 0; s < plan.scenes.length; s++) {
-          const scene = plan.scenes[s];
-          // Non-photo visual_types have their own content (card_title, chart_data, etc.)
-          if (scene.visual_type && scene.visual_type !== 'photo') continue;
-          const overlay = String(scene?.text_overlay || '').trim();
-          if (scene?.image_has_text === true) continue;
-          if (shouldAllowEmptyOverlay(scene, plan, s)) continue;
-          if (!overlay) {
-            emptyOverlayViolations.push(scene.id || `scene_${s + 1}`);
-          }
-        }
-        if (emptyOverlayViolations.length > 0) {
-          const message = `empty text_overlay in video ${idx}: ${emptyOverlayViolations.join(', ')}`;
-          log(output_dir, 'video_pro', `Validation failed: ${message}`);
-          process.stdout.write(`[STAGE3_VIDEO_PLAN_INVALID] ${output_dir} ${message}\n`);
-          return { status: 'failed', reason: message };
-        }
-      } catch (e) {
-        log(output_dir, 'video_pro', `Typography validation error: ${e.message}`);
       }
-    }
+      // Keep only top 20 patterns
+      globalPatterns.patterns.sort((a, b) => b.count - a.count);
+      globalPatterns.patterns = globalPatterns.patterns.slice(0, 20);
+      fs.writeFileSync(globalErrorsPath, JSON.stringify(globalPatterns, null, 2), 'utf-8');
+    } catch {}
 
     const approvalPath = path.resolve(projectRoot, output_dir, 'video', 'approved.json');
     const rejectedPath = path.resolve(projectRoot, output_dir, 'video', 'rejected.json');

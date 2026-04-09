@@ -553,6 +553,28 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
       await replyAndRefresh(`✅ Fonte de imagens: <b>${s.pendingCampaign.image_source}</b>`);
       return true;
     }
+    if (/^template\s+(.+)$/i.test(lower)) {
+      const tpl = lower.match(/^template\s+(.+)$/i)[1].trim();
+      const validTemplates = ['auto', 'data_story', 'explainer', 'carousel_narrativo', 'brand_film'];
+      if (validTemplates.includes(tpl)) {
+        s.pendingCampaign.video_template = tpl;
+        await replyAndRefresh(`✅ Template: <b>${tpl}</b>`);
+      } else {
+        await ctx.reply(`Template "${tpl}" não reconhecido. Opções: ${validTemplates.join(', ')}`);
+      }
+      return true;
+    }
+    if (/^tipografia\s+(.+)$/i.test(lower)) {
+      const typo = lower.match(/^tipografia\s+(.+)$/i)[1].trim();
+      const validTypo = ['auto', 'serif', 'sans', 'condensed', 'mono'];
+      if (validTypo.includes(typo)) {
+        s.pendingCampaign.typography = typo;
+        await replyAndRefresh(`✅ Tipografia: <b>${typo}</b>`);
+      } else {
+        await ctx.reply(`Tipografia "${typo}" não reconhecida. Opções: ${validTypo.join(', ')}`);
+      }
+      return true;
+    }
 
     if (lower.length > 5) {
       const originalBrief = s.pendingCampaign.campaign_brief || '';
