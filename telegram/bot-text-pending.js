@@ -273,6 +273,13 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
     });
     session.setCampaignV3Stage(chatId, Math.min(...rerunStages) - 1);
 
+    // Mark stages NOT being rerun as already "done" so the monitor ignores their old logs
+    for (let stage = 1; stage <= 5; stage++) {
+      if (!rerunStages.includes(stage)) {
+        monitoredSignals.add(`stage_done:${payload.output_dir}:${stage}`);
+      }
+    }
+    // Clear signals only for stages being rerun
     for (const stageNum of rerunStages) monitoredSignals.delete(`stage_done:${payload.output_dir}:${stageNum}`);
     for (const sig of [...monitoredSignals]) {
       if (sig.startsWith(`phase:${payload.output_dir}:`)) monitoredSignals.delete(sig);
