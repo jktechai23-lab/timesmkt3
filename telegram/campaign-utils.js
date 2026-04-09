@@ -52,7 +52,7 @@ function buildConfigTable(payload, title, env = process.env) {
 
   const DEFAULTS = {
     image_source: 'brand', image_model: 'z-image', image_provider: 'KIE',
-    narrator: 'rachel', video_duration: 60, style_preset: 'inema_hightech',
+    narrator: 'bella', video_duration: 60, style_preset: 'inema_hightech',
     photo_quality: 'simples', scene_quality: 'simples',
     video_quick: true, video_pro: false, video_template: 'auto', language: 'pt-BR',
     image_bg_mode: 'dark', notifications: true, approval: 'auto',
@@ -74,10 +74,11 @@ function buildConfigTable(payload, title, env = process.env) {
     { setting: 'Fonte imgs', current: sourceLabel, def: DEFAULTS.image_source, opts: 'brand / api / free / screenshot / folder xxx / solid [cor]' },
     { setting: 'Quick', current: vQuick ? 'sim' : 'nao', def: 'sim', opts: 'sim / sem quick' },
     { setting: 'Pro', current: vPro ? 'sim' : 'nao', def: 'nao', opts: 'pro' },
-    { setting: 'Narrador', current: payload.narrator || 'rachel', def: DEFAULTS.narrator, opts: 'rachel / bella / domi / antoni / josh / arnold' },
-    { setting: 'TTS', current: payload.tts_provider || 'auto', def: DEFAULTS.tts_provider, opts: 'auto / elevenlabs / minimax / openai' },
+    { setting: 'Narrador', current: payload.narrator || 'bella', def: DEFAULTS.narrator, opts: 'bella / rachel / domi / antoni / josh / arnold' },
+    { setting: 'TTS', current: payload.tts_provider || 'auto', def: DEFAULTS.tts_provider, opts: 'auto / elevenlabs / fish / openai' },
     { setting: 'Duração', current: `${payload.video_duration || 60}s`, def: '60s', opts: '30 / 60' },
-    { setting: 'Estilo', current: payload.style_preset || 'inema_hightech', def: DEFAULTS.style_preset, opts: 'inema_hightech / 01_hero_film / ...' },
+    { setting: 'Estilo', current: payload.style_preset || 'inema_hightech', def: DEFAULTS.style_preset, opts: 'inema_hightech / neon_futurista / premium_minimal / energetico / emocional / corporate / streetwear / nature / retro / bold_pop / dark_dramatic / playful / editorial' },
+    { setting: 'Tipografia', current: payload.typography || 'auto', def: 'auto', opts: 'auto / serif / sans / condensed / mono' },
     { setting: 'Dir.Foto', current: payload.photo_quality || 'simples', def: DEFAULTS.photo_quality, opts: 'simples / premium' },
     { setting: 'Scene plan', current: payload.scene_quality || 'simples', def: DEFAULTS.scene_quality, opts: 'simples / premium' },
     { setting: 'Template', current: payload.video_template || 'auto', def: DEFAULTS.video_template, opts: 'auto / data_story / explainer / carousel_narrativo / brand_film' },
@@ -206,7 +207,7 @@ Rules:
 - approval_modes: each stage can be "humano" (user must approve), "agente" (AI reviewer decides), or "auto" (advance automatically). Default "auto" for all. Set to "humano" if user explicitly asks for approval before each stage. Set to "agente" if user says "aprovação por agente", "agente revisa".
 - notifications: false only if user explicitly says "sem notificações", "silencioso", "não notificar".
 - video_audio: "narration" if user wants voiceover/narração (default), "music" if user wants background music only, "both" if user wants narration + music, "none" for silent/no audio.
-- tts_provider: "auto" by default. Set to "elevenlabs", "minimax", or "openai" only if the user explicitly asks for that TTS provider.
+- tts_provider: "auto" by default. Set to "elevenlabs", "fish", or "openai" only if the user explicitly asks for that TTS provider.
 - campaign_brief: comprehensive summary of everything the user described
 - Return ONLY the JSON object, no markdown, no explanation`;
 

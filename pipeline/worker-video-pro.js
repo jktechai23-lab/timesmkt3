@@ -403,9 +403,9 @@ ${langInstruction}${briefInstruction}
 
 For each of the ${video_count} video(s), write a narration script.
 Target duration: ${job.data.video_duration || 60} seconds (${Math.round((job.data.video_duration || 60) * 2.5)} words for pt-BR at ~2.5 words/sec).
-Then generate the audio using: node pipeline/generate-audio.js <output.mp3> "<script>" ${job.data.narrator || 'rachel'}${selectedTtsProvider ? ` --provider ${selectedTtsProvider}` : ''}
+Then generate the audio using: node pipeline/generate-audio.js <output.mp3> "<script>" ${job.data.narrator || 'bella'}${selectedTtsProvider ? ` --provider ${selectedTtsProvider}` : ''}
 Save narration to: ${output_dir}/audio/${task_name}_video_0N_narration.mp3
-Voice: ${job.data.narrator || 'rachel'} — use this EXACT voice (must match quick video for consistency)
+Voice: ${job.data.narrator || 'bella'} — use this EXACT voice (must match quick video for consistency)
 Preferred TTS provider: ${ttsProviderLabel}
 
 IMPORTANT: ONLY generate narration audio files. Do NOT create scene plans or any other files.
@@ -685,6 +685,7 @@ Output ONLY the JSON file. Do NOT create scene plans or render anything.`;
         fs.writeFileSync(photoplanPath, JSON.stringify(fallbackPlan, null, 2), 'utf-8');
         log(output_dir, 'video_pro', `Photography Director timed out — using fallback plan: ${error.message.slice(0, 200)}`);
         log(output_dir, 'video_pro', 'Photography plan created via fallback assets.');
+        process.stdout.write(`[VIDEO_PRO_FALLBACK] ${output_dir} photography_director_timeout\n`);
       }
     } else {
       log(output_dir, 'video_pro', 'Photography plan already exists, skipping.');
@@ -889,10 +890,10 @@ CRITICAL RULES (enforced — plan will be rejected if violated):
 - MINIMUM 25 cuts for a 60s video (target 30-50)
 - NEVER same motion.type on 2 consecutive cuts
 - NEVER same text_layout.position on 3 consecutive cuts
-- First cut duration ≤ 1.5s (hook must be fast)
+- First cut duration ≤ 1.5s (hook must be fast) with LARGE text (font_size 120-140px, bold, impactful)
 - Last cut duration ≥ 3s (CTA needs reading time)
 - Cuts < 0.8s: NO text_overlay (too fast to read)
-- Cuts with text_overlay ≥ 1.2s (minimum reading time)
+- Cuts with text_overlay ≥ 2.0s (minimum reading time)
 - Max 6 words per text_overlay
 - Text overlay COMPLEMENTS narration, never repeats it
 - Sum of all durations must equal video_length (tolerance ±2s)
@@ -959,7 +960,7 @@ Generate a JSON file with this structure:
 {
   "titulo": "...", "video_length": ${videoDur}, "format": "9:16",
   "width": 1080, "height": 1920,
-  "voice": "${job.data.narrator || 'rachel'}",
+  "voice": "${job.data.narrator || 'bella'}",
   "narration_file": "path or null", "music": "path or null", "music_volume": 0.15,
   "color_grading": { "gamma": 1.05, "saturate": 1.1, "contrast": 1.15, "hueRotate": 10 },
   "film_grain": { "intensity": 0, "monochromatic": true, "lightLeak": false },
@@ -1523,6 +1524,7 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
         const message = renderErr.message.slice(0, 200);
         if (renderer === renderRemotion) {
           log(output_dir, 'video_pro', `Remotion render ${i} failed, falling back to ffmpeg: ${message}`);
+          process.stdout.write(`[VIDEO_PRO_FALLBACK] ${output_dir} remotion_render_failed\n`);
           let fallbackReason = '';
           let fallbackFailed = false;
           try {

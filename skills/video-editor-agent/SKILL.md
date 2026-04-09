@@ -90,10 +90,10 @@ Antes de qualquer decisão criativa, leia **todos** estes arquivos:
 2. **Nunca mesmo text_position 3x seguidas:** Máximo 2 consecutivas iguais
 3. **Padrões rítmicos:** Varie duração: short-short-long (1s-1s-3s), short-long-short (0.5s-2.5s-1s)
 4. **Curva de energia:** Hook alto → dip no problema → build na solução → peak na prova → hold no CTA
-5. **Primeiro corte ≤ 1.5s:** Hook sempre rápido
+5. **Primeiro corte ≤ 1.5s:** Hook sempre rápido com texto GRANDE (120-140px, bold, impactante)
 6. **Último corte ≥ 3s:** CTA precisa de tempo para ser lido
 7. **Sem texto em cortes < 0.8s:** Cortes muito rápidos são visuais puros (text_overlay vazio)
-8. **Cortes com texto ≥ 1.2s:** Mínimo para leitura confortável
+8. **Cortes com texto ≥ 2.0s:** Mínimo para leitura confortável
 9. **Máximo 6 palavras por text_overlay:** Menos é mais
 10. **Text overlay complementa, nunca repete** a narração
 11. **Video Pro: PROIBIDO usar imagens de carrossel, banners ou artes gráficas do ads/ como source.** O vídeo pro é cinematográfico — usar APENAS imagens fotográficas (assets de marca, imagens geradas via API, pexels). Exceção única: quando o payload contém `carousel_in_video: true` explicitamente. No Video Quick, carrossel é permitido.
@@ -423,10 +423,10 @@ Antes de finalizar o scene plan, verifique TODOS:
 - [ ] Soma das durações = video_length (tolerância ±2s)
 - [ ] Nenhum motion.type repetido consecutivamente
 - [ ] Nenhum text_layout.position repetido 3x consecutivamente
-- [ ] Primeiro corte ≤ 1.5s (hook rápido)
+- [ ] Primeiro corte ≤ 1.5s com texto GRANDE (120-140px, bold)
 - [ ] Último corte ≥ 3s (CTA com tempo de leitura)
 - [ ] Cortes < 0.8s sem text_overlay
-- [ ] Cortes com text_overlay ≥ 1.2s
+- [ ] Cortes com text_overlay ≥ 2.0s
 - [ ] Máximo 6 palavras por text_overlay
 - [ ] Cada imagem usada no máximo 5x
 - [ ] Todos os caminhos de imagem existem
