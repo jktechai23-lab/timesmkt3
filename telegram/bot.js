@@ -493,44 +493,46 @@ bot.command('helptemplates', async (ctx) => {
   await ctx.reply(
     `<b>TEMPLATES VIDEO PRO</b>\n\n` +
 
-    `Templates controlam o <b>visual_type</b> de cada cena do video.\n` +
-    `Em vez de so fotos, o video pode ter graficos, cards de texto, listas e comparacoes.\n\n` +
+    `Templates controlam o estilo e conteudo de cada cena do video.\n\n` +
 
-    `<b>5 Templates disponiveis:</b>\n\n` +
+    `<b>⭐ DESTAQUE — Templates de Pesquisa:</b>\n\n` +
 
-    `<b>auto</b> (padrao)\n` +
-    `Agente decide livremente. Comportamento atual.\n\n` +
+    `<b>⭐ report</b> — Relatorio visual da pesquisa\n` +
+    `Gera carousel + video automaticamente com os dados\n` +
+    `do research_results.json: graficos, tendencias, dores,\n` +
+    `oportunidades. Sem agente — 100% automatico.\n` +
+    `Saida: pasta report/ com carousels + video + HTML\n\n` +
+
+    `<b>⭐ gatilhos</b> — Ads de todos os hooks\n` +
+    `Extrai TODOS os hooks da pesquisa (ad_hooks, video_concepts,\n` +
+    `marketing_angles) e gera para CADA hook:\n` +
+    `  • 3-5 slides carousel\n` +
+    `  • 1 video curto (<30s)\n` +
+    `Saida: pasta gatilhos/ com subpasta por hook\n\n` +
+
+    `<b>Templates de Video:</b>\n\n` +
+
+    `<b>auto</b> (padrao) — Agente decide livremente\n\n` +
 
     `<b>data_story</b> — Dados como protagonista\n` +
-    `~60% graficos, ~20% text cards, ~20% fotos\n` +
-    `Ideal para: ROI, estatisticas, comparacoes numericas\n` +
-    `Quando a narracao diz "30%", aparece um grafico de barras.\n\n` +
+    `Numeros grandes, graficos, estilo tech/autoridade\n\n` +
 
     `<b>explainer</b> — Explicar conceitos\n` +
-    `~40% listas/text cards, ~30% fotos, ~30% graficos\n` +
-    `Ideal para: tutoriais, processos, passo a passo\n\n` +
+    `Steps numerados, cards didaticos, progressao visual\n\n` +
 
-    `<b>narrativo</b> — Narrativa visual\n` +
-    `~50% text cards, ~30% fotos, ~20% graficos\n` +
-    `Ideal para: storytelling, frases de impacto\n\n` +
+    `<b>narrativo</b> — Narrativa de impacto\n` +
+    `Frases gigantes centralizadas, emocional, Bebas Neue\n\n` +
 
     `<b>brand_film</b> — Cinematografico\n` +
-    `~70% fotos, ~20% text cards, ~10% graficos\n` +
-    `Ideal para: branding, emocional, lifestyle\n\n` +
-
-    `<b>5 Tipos visuais por cena:</b>\n` +
-    `  <code>photo</code> — foto + text overlay + motion\n` +
-    `  <code>chart</code> — grafico (bar/line/pie/donut)\n` +
-    `  <code>text_card</code> — texto grande em fundo estilizado\n` +
-    `  <code>list</code> — itens numerados ou com bullets\n` +
-    `  <code>split</code> — comparacao lado a lado\n\n` +
+    `Foto domina, texto minimo elegante, lower third\n\n` +
 
     `<b>Como usar:</b>\n` +
-    `Inclua "template X" na descricao da campanha:\n` +
-    `<i>"quero um video pro sobre IA, template data_story"</i>\n\n` +
+    `<code>/rerun c52 3 pro report</code>\n` +
+    `<code>/rerun c52 3 pro gatilhos</code>\n` +
+    `<code>/rerun c52 3 pro report gatilhos data_story</code>\n` +
+    `<code>template data_story</code> (no briefing)\n\n` +
 
-    `Templates compartilham audio e imagens — voce pode gerar\n` +
-    `multiplos templates para a mesma campanha.`,
+    `Multiplos templates num comando: gera um video por template.`,
     { parse_mode: 'HTML' }
   );
 });

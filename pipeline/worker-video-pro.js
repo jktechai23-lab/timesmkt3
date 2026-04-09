@@ -13,6 +13,8 @@ const {
 const { markAudioMissing } = require('./video-audio');
 const { validateScenePlan } = require('./scene-plan-validator');
 const { renderAllSlides, resolvePreset, closeBrowser: closeSlideBrowser } = require('./render-slide-png');
+const { generateReport } = require('./worker-video-report');
+const { generateGatilhos } = require('./worker-video-gatilhos');
 
 function shouldAllowEmptyOverlay(scene, plan, index) {
   const narration = String(scene?.narration || '').trim();
@@ -79,6 +81,42 @@ function createWorkerVideoProHandler({
       image_background_color,
     );
     const absVideoDir = path.resolve(projectRoot, output_dir, 'video');
+
+    // ── Special templates: report and gatilhos (bypass normal flow) ────
+    if (video_template === 'report') {
+      try {
+        const result = await generateReport({
+          projectRoot, outputDir: output_dir, projectDir: project_dir,
+          taskName: task_name, stylePreset: job.data.style_preset || 'inema_hightech', log,
+        });
+        log(output_dir, 'video_pro', `Report complete: ${result.carousels} carousels, video: ${result.video ? 'yes' : 'no'}`);
+        log(output_dir, 'video_pro', 'Completed successfully.');
+        return { status: 'completed', type: 'report', ...result };
+      } catch (e) {
+        log(output_dir, 'video_pro', `Report failed: ${e.message}`);
+        return { status: 'failed', reason: e.message };
+      }
+    }
+
+    if (video_template === 'gatilhos') {
+      try {
+        const brandCtx = readBrandContext ? readBrandContext(projectRoot, project_dir) : {};
+        const result = await generateGatilhos({
+          projectRoot, outputDir: output_dir, projectDir: project_dir,
+          taskName: task_name, stylePreset: job.data.style_preset || 'inema_hightech',
+          ctaBrand: brandCtx.brand || task_name.toUpperCase(),
+          ctaAction: brandCtx.cta || 'Acesse grátis',
+          log,
+        });
+        log(output_dir, 'video_pro', `Gatilhos complete: ${result.completed}/${result.count} hooks rendered`);
+        log(output_dir, 'video_pro', 'Completed successfully.');
+        return { status: 'completed', type: 'gatilhos', ...result };
+      } catch (e) {
+        log(output_dir, 'video_pro', `Gatilhos failed: ${e.message}`);
+        return { status: 'failed', reason: e.message };
+      }
+    }
+
     const collectFallbackVisualAssets = () => {
       if (image_source === 'solid') return [];
       const seen = new Set();

@@ -81,7 +81,7 @@ function buildConfigTable(payload, title, env = process.env) {
     { setting: 'Tipografia', current: payload.typography || 'auto', def: 'auto', opts: 'auto / serif / sans / condensed / mono' },
     { setting: 'Dir.Foto', current: payload.photo_quality || 'simples', def: DEFAULTS.photo_quality, opts: 'simples / premium' },
     { setting: 'Scene plan', current: payload.scene_quality || 'simples', def: DEFAULTS.scene_quality, opts: 'simples / premium' },
-    { setting: 'Template', current: payload.video_template || 'auto', def: DEFAULTS.video_template, opts: 'auto / data_story / explainer / narrativo / brand_film' },
+    { setting: 'Template', current: payload.video_template || 'auto', def: DEFAULTS.video_template, opts: 'auto / data_story / explainer / narrativo / brand_film / ⭐report / ⭐gatilhos' },
     { setting: 'Fundo quick', current: bgLabel, def: 'escuro', opts: 'escuro / blur' },
     { setting: 'Idioma', current: payload.language || 'pt-BR', def: DEFAULTS.language, opts: 'pt-BR / en' },
     { setting: 'Aprovação', current: approvalLabel, def: DEFAULTS.approval, opts: 'humano / auto' },
@@ -231,7 +231,7 @@ Rules:
       payload.video_quick = true;
       payload.video_pro = payload.video_pro === true;
       payload.video_mode = payload.video_pro ? 'both' : 'quick';
-      const validTemplates = ['auto', 'data_story', 'explainer', 'narrativo', 'brand_film'];
+      const validTemplates = ['auto', 'data_story', 'explainer', 'narrativo', 'brand_film', 'report', 'gatilhos'];
       payload.video_template = validTemplates.includes(payload.video_template) ? payload.video_template : 'auto';
       callback(payload);
     } catch {

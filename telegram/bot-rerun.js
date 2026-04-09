@@ -288,7 +288,7 @@ function registerRerunCommands(bot, deps) {
       if (token === 'draft') { videoDraft = true; continue; }
 
       // Template tokens — supports multiple templates in one command
-      const validTemplates = ['auto', 'data_story', 'explainer', 'narrativo', 'brand_film'];
+      const validTemplates = ['auto', 'data_story', 'explainer', 'narrativo', 'brand_film', 'report', 'gatilhos'];
       if (token === 'template' && next && validTemplates.includes(next)) {
         videoTemplates.push(next); i += 1; continue;
       }
