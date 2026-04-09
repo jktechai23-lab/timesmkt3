@@ -1357,6 +1357,23 @@ Salve o JSON corrigido em: ${planPath}`;
     process.stdout.write(`[VIDEO_PRO_PROGRESS] ${output_dir} render_start\n`);
     log(output_dir, 'video_pro', 'Starting video render...');
 
+    // ── Ensure narration_file is set in all scene plans ────────────────────
+    // Agent in simples mode often leaves narration_file:null
+    for (let i = 1; i <= video_count; i++) {
+      const idx = String(i).padStart(2, '0');
+      const planPath = vfFind(idx, '_scene_plan_motion.json');
+      if (!fs.existsSync(planPath)) continue;
+      try {
+        const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
+        const videoIdx = i - 1;
+        if (!plan.narration_file && !plan.audio && narrationTimings[videoIdx]?.file) {
+          plan.narration_file = narrationTimings[videoIdx].file;
+          fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf-8');
+          log(output_dir, 'video_pro', `Injected narration_file into video ${idx}: ${narrationTimings[videoIdx].file}`);
+        }
+      } catch {}
+    }
+
     // ── Slide rendering (simples mode) ────────────────────────────────────
     // Render all scenes as designed slides (HTML+CSS → Playwright → PNG)
     // These PNGs replace the raw images — FFmpeg composites them into video
@@ -1380,12 +1397,6 @@ Salve o JSON corrigido em: ${planPath}`;
 
         try {
           const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
-
-          // Ensure narration_file is set (agent may leave it null in simples mode)
-          const videoIdx = parseInt(idx, 10) - 1;
-          if (!plan.narration_file && !plan.audio && narrationTimings[videoIdx]?.file) {
-            plan.narration_file = narrationTimings[videoIdx].file;
-          }
 
           const vidW = plan.width || 1080;
           const vidH = plan.height || 1920;
