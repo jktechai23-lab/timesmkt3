@@ -309,16 +309,16 @@ function brandFilmSlide(scene, p, bgImage, w, h) {
   let content = '';
   if (vt === 'chart') {
     content = `
-      <div style="position:absolute;bottom:${Math.round(h*0.12)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;">
+      <div style="position:absolute;top:${Math.round(h*0.50)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;">
         <div style="font-family:'Cormorant Garamond',serif;font-size:${Math.round(h*0.022)}px;font-weight:300;color:${p.text};opacity:0.7;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:${Math.round(h*0.01)}px;">${esc(keyword)}</div>
-        <div style="height:${Math.round(h*0.3)}px;"><canvas id="chart" style="max-width:100%;max-height:100%;"></canvas></div>
+        <div style="height:${Math.round(h*0.35)}px;"><canvas id="chart" style="max-width:100%;max-height:100%;"></canvas></div>
       </div>
       ${chartScript(scene, p, w, h, 'Inter', 'rgba(255,255,255,0.8)', 'rgba(255,255,255,0.04)')}
     `;
   } else if (vt === 'text_card') {
-    // Lower third style — elegant, minimal
+    // Mid-lower — elegant, minimal
     content = `
-      <div style="position:absolute;bottom:${Math.round(h*0.12)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;">
+      <div style="position:absolute;top:${Math.round(h*0.55)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;">
         <div style="width:${Math.round(w*0.08)}px;height:2px;background:${p.text};opacity:0.4;margin-bottom:${Math.round(h*0.02)}px;"></div>
         <div style="font-family:'Cormorant Garamond',serif;font-size:${Math.round(h*0.04)}px;font-weight:300;color:${p.text};line-height:1.25;letter-spacing:0.02em;">${esc(scene.card_title || '')}</div>
         ${scene.card_body ? `<div style="font-family:'Inter',sans-serif;font-size:${Math.round(h*0.02)}px;font-weight:300;color:${p.text};opacity:0.65;margin-top:${Math.round(h*0.015)}px;line-height:1.5;letter-spacing:0.03em;">${esc(scene.card_body)}</div>` : ''}
@@ -332,15 +332,15 @@ function brandFilmSlide(scene, p, bgImage, w, h) {
       </div>`;
     }).join('');
     content = `
-      <div style="position:absolute;bottom:${Math.round(h*0.12)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;">
+      <div style="position:absolute;top:${Math.round(h*0.52)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;">
         <div style="font-family:'Cormorant Garamond',serif;font-size:${Math.round(h*0.022)}px;font-weight:300;color:${p.text};opacity:0.6;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:${Math.round(h*0.015)}px;">${esc(keyword)}</div>
         ${items}
       </div>
     `;
   } else {
-    // photo: minimal keyword at bottom — photo is everything
+    // photo: minimal keyword at mid-lower — photo is everything
     content = `
-      <div style="position:absolute;bottom:${Math.round(h*0.10)}px;left:${Math.round(w*0.06)}px;z-index:10;">
+      <div style="position:absolute;top:${Math.round(h*0.58)}px;left:${Math.round(w*0.06)}px;z-index:10;">
         <div style="font-family:'Cormorant Garamond',serif;font-size:${Math.round(h*0.035)}px;font-weight:300;color:${p.text};letter-spacing:0.15em;text-transform:uppercase;text-shadow:0 2px 20px rgba(0,0,0,0.6);">${esc(keyword)}</div>
       </div>
     `;
