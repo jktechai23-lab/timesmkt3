@@ -133,12 +133,12 @@ function dataStorySlide(scene, p, bgImage, w, h) {
     const heroValue = (scene.chart_data || [])[0]?.value || '';
     const heroLabel = scene.chart_title || '';
     content = `
-      <div style="position:absolute;top:${Math.round(h*0.10)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;">
-        <div style="font-family:'Space Grotesk',sans-serif;font-size:${Math.round(h*0.022)}px;font-weight:600;color:${p.primary};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:${Math.round(h*0.01)}px;">${esc(keyword)}</div>
-        <div style="font-family:'Space Grotesk',sans-serif;font-size:${Math.round(h*0.12)}px;font-weight:800;color:${p.text};line-height:1;margin-bottom:${Math.round(h*0.01)}px;text-shadow:0 4px 40px rgba(0,0,0,0.8);">${esc(String(heroValue))}</div>
-        <div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(h*0.028)}px;font-weight:400;color:${p.text};opacity:0.7;">${esc(heroLabel)}</div>
+      <div style="position:absolute;top:${Math.round(h*0.06)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:${Math.round(h*0.02)}px;font-weight:600;color:${p.primary};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:${Math.round(h*0.008)}px;">${esc(keyword)}</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:${Math.round(h*0.09)}px;font-weight:800;color:${p.text};line-height:1;margin-bottom:${Math.round(h*0.008)}px;text-shadow:0 4px 40px rgba(0,0,0,0.8);">${esc(String(heroValue))}</div>
+        <div style="font-family:'DM Sans',sans-serif;font-size:${Math.round(h*0.024)}px;font-weight:400;color:${p.text};opacity:0.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(heroLabel)}</div>
       </div>
-      <div style="position:absolute;top:${Math.round(h*0.38)}px;left:${Math.round(w*0.04)}px;right:${Math.round(w*0.04)}px;bottom:${Math.round(h*0.08)}px;z-index:10;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:${Math.round(h*0.02)}px;">
+      <div style="position:absolute;top:${Math.round(h*0.28)}px;left:${Math.round(w*0.04)}px;right:${Math.round(w*0.04)}px;bottom:${Math.round(h*0.06)}px;z-index:10;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:${Math.round(h*0.02)}px;">
         <canvas id="chart" style="max-width:100%;max-height:100%;"></canvas>
       </div>
       ${chartScript(scene, p, w, h, 'Space Grotesk', p.text, 'rgba(255,255,255,0.06)')}
@@ -193,9 +193,9 @@ function explainerSlide(scene, p, bgImage, w, h) {
     content = `
       <div style="position:absolute;top:${Math.round(h*0.06)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;">
         <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:${Math.round(h*0.02)}px;font-weight:700;color:${p.primary};text-transform:uppercase;letter-spacing:0.1em;">${esc(keyword)}</div>
-        <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:${Math.round(h*0.035)}px;font-weight:800;color:${p.text};margin-top:${Math.round(h*0.01)}px;">${esc(scene.chart_title || '')}</div>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:${Math.round(h*0.03)}px;font-weight:800;color:${p.text};margin-top:${Math.round(h*0.008)}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(scene.chart_title || '')}</div>
       </div>
-      <div style="position:absolute;top:${Math.round(h*0.16)}px;left:${Math.round(w*0.05)}px;right:${Math.round(w*0.05)}px;bottom:${Math.round(h*0.08)}px;z-index:10;background:rgba(255,255,255,0.08);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:${Math.round(h*0.025)}px;">
+      <div style="position:absolute;top:${Math.round(h*0.16)}px;left:${Math.round(w*0.05)}px;right:${Math.round(w*0.05)}px;bottom:${Math.round(h*0.06)}px;z-index:10;background:rgba(255,255,255,0.08);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:${Math.round(h*0.025)}px;">
         <canvas id="chart" style="max-width:100%;max-height:100%;"></canvas>
       </div>
       ${chartScript(scene, p, w, h, 'Plus Jakarta Sans', p.text, 'rgba(255,255,255,0.08)')}
@@ -252,11 +252,11 @@ function narrativoSlide(scene, p, bgImage, w, h) {
   let content = '';
   if (vt === 'chart') {
     content = `
-      <div style="position:absolute;top:${Math.round(h*0.08)}px;left:0;right:0;z-index:10;text-align:center;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:${Math.round(h*0.06)}px;color:${p.accent};letter-spacing:0.08em;">${esc(keyword)}</div>
-        <div style="font-family:'Montserrat',sans-serif;font-size:${Math.round(h*0.028)}px;font-weight:700;color:${p.text};margin-top:${Math.round(h*0.01)}px;">${esc(scene.chart_title || '')}</div>
+      <div style="position:absolute;top:${Math.round(h*0.06)}px;left:0;right:0;z-index:10;text-align:center;padding:0 ${Math.round(w*0.06)}px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:${Math.round(h*0.05)}px;color:${p.accent};letter-spacing:0.08em;">${esc(keyword)}</div>
+        <div style="font-family:'Montserrat',sans-serif;font-size:${Math.round(h*0.024)}px;font-weight:700;color:${p.text};margin-top:${Math.round(h*0.008)}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(scene.chart_title || '')}</div>
       </div>
-      <div style="position:absolute;top:${Math.round(h*0.22)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;bottom:${Math.round(h*0.1)}px;z-index:10;">
+      <div style="position:absolute;top:${Math.round(h*0.18)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;bottom:${Math.round(h*0.06)}px;z-index:10;">
         <canvas id="chart" style="max-width:100%;max-height:100%;"></canvas>
       </div>
       ${chartScript(scene, p, w, h, 'Montserrat', p.text, 'rgba(255,255,255,0.05)')}
