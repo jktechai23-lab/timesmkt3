@@ -43,17 +43,19 @@ function validateScenePlan(plan, opts = {}) {
         `Cena 1 "${first.id}": duração ${first.duration}s > 1.5s. Hook deve ser rápido (≤1.5s).`
       );
     }
-    const firstFontSize = first.text_layout?.font_size || 0;
-    if (firstFontSize < 120) {
-      violations.push(
-        `Cena 1 "${first.id}": font_size ${firstFontSize}px < 120px. Hook deve ter texto GRANDE (120-140px).`
-      );
-    }
-    const firstText = String(first.text_overlay || '').trim();
-    if (!firstText && (first.visual_type || 'photo') === 'photo') {
-      violations.push(
-        `Cena 1 "${first.id}": text_overlay vazio. Hook DEVE ter texto de impacto.`
-      );
+    if (!simplesMode) {
+      const firstFontSize = first.text_layout?.font_size || 0;
+      if (firstFontSize < 120) {
+        violations.push(
+          `Cena 1 "${first.id}": font_size ${firstFontSize}px < 120px. Hook deve ter texto GRANDE (120-140px).`
+        );
+      }
+      const firstText = String(first.text_overlay || '').trim();
+      if (!firstText && (first.visual_type || 'photo') === 'photo') {
+        violations.push(
+          `Cena 1 "${first.id}": text_overlay vazio. Hook DEVE ter texto de impacto.`
+        );
+      }
     }
   }
 
