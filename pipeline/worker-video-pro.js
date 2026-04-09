@@ -1243,6 +1243,7 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
           videoDur,
           projectRoot,
           outputDir: output_dir,
+          simplesMode: sceneQuality === 'simples',
         });
 
         // Save to validation history

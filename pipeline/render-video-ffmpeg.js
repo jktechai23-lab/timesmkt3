@@ -280,7 +280,7 @@ async function renderVideo(scenePlanPath, outputPath) {
       const zoomEnd      = motionConfig.zoom_end   ?? 1.08;
 
       // ── Text layout config (used for background only — text rendered via ASS) ─
-      const textOverlay  = scene.text_overlay || '';
+      const textOverlay  = String(scene.text_overlay || '');
       const textLayout   = scene.text_layout || {};
       const fontSize     = textLayout.font_size         || (textOverlay.length > 60 ? 52 : textOverlay.length > 30 ? 64 : 80);
       const textPosition = textLayout.position          || 'bottom';

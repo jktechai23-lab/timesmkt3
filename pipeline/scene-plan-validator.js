@@ -21,6 +21,7 @@ function validateScenePlan(plan, opts = {}) {
   const violations = [];
   const videoDur = opts.videoDur || plan.video_length || 60;
   const projectRoot = opts.projectRoot || process.cwd();
+  const simplesMode = opts.simplesMode || false;
 
   if (scenes.length === 0) {
     return { valid: false, violations: ['Scene plan has no scenes'] };
@@ -71,8 +72,8 @@ function validateScenePlan(plan, opts = {}) {
     const vt = scene.visual_type || 'photo';
     const dur = scene.duration || 0;
 
-    // 4a. Motion repetido em 2 consecutivas
-    if (i > 0 && vt === 'photo') {
+    // 4a. Motion repetido em 2 consecutivas (skip in simples — system assigns motion)
+    if (i > 0 && vt === 'photo' && !simplesMode) {
       const prevMotion = scenes[i - 1].motion?.type;
       const currMotion = scene.motion?.type;
       if (prevMotion && currMotion && prevMotion === currMotion && currMotion !== 'breathe') {
@@ -82,8 +83,8 @@ function validateScenePlan(plan, opts = {}) {
       }
     }
 
-    // 4b. Posição de texto 3x consecutiva
-    if (i >= 2 && vt === 'photo') {
+    // 4b. Posição de texto 3x consecutiva (skip in simples — system handles layout)
+    if (i >= 2 && vt === 'photo' && !simplesMode) {
       const p1 = scenes[i - 2].text_layout?.position;
       const p2 = scenes[i - 1].text_layout?.position;
       const p3 = scene.text_layout?.position;
@@ -94,8 +95,8 @@ function validateScenePlan(plan, opts = {}) {
       }
     }
 
-    // 4c. Text overlay em cenas photo
-    if (vt === 'photo') {
+    // 4c. Text overlay em cenas photo (skip in simples — system renders slides with keyword)
+    if (vt === 'photo' && !simplesMode) {
       const text = String(scene.text_overlay || '').trim();
       const isLast = i === scenes.length - 1;
       const isSilentClosing = isLast && !(scene.narration || '').trim();
@@ -122,8 +123,8 @@ function validateScenePlan(plan, opts = {}) {
       }
     }
 
-    // 4f. Font size mínimo
-    if (vt === 'photo' && scene.text_layout?.font_size) {
+    // 4f. Font size mínimo (skip in simples — system controls fonts)
+    if (vt === 'photo' && !simplesMode && scene.text_layout?.font_size) {
       const fs = scene.text_layout.font_size;
       const type = scene.type || '';
       const minSize = type === 'hook' ? 120 : type === 'cta' ? 96 : 80;
