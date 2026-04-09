@@ -100,12 +100,24 @@ function createWorkerVideoProHandler({
 
     if (video_template === 'gatilhos') {
       try {
-        const brandCtx = (readBrandContext ? readBrandContext(projectRoot, project_dir) : null) || {};
+        // Read brand from research_results.json or brand_identity
+        let ctaBrandName = '';
+        const resPath = path.resolve(projectRoot, output_dir, 'research_results.json');
+        if (fs.existsSync(resPath)) {
+          try { ctaBrandName = JSON.parse(fs.readFileSync(resPath, 'utf-8')).brand || ''; } catch {}
+        }
+        if (!ctaBrandName) {
+          const brandCtx = (readBrandContext ? readBrandContext(projectRoot, project_dir) : null) || {};
+          ctaBrandName = brandCtx.brand || '';
+        }
+        // Default CTA brand: project folder name cleaned up, or brand from research
+        const ctaBrand = ctaBrandName ? `${ctaBrandName.toUpperCase()}.CLUB` : 'INEMA.CLUB';
+
         const result = await generateGatilhos({
           projectRoot, outputDir: output_dir, projectDir: project_dir,
           taskName: task_name, stylePreset: job.data.style_preset || 'inema_hightech',
-          ctaBrand: brandCtx.brand || task_name.toUpperCase(),
-          ctaAction: brandCtx.cta || 'Acesse grátis',
+          ctaBrand,
+          ctaAction: 'Acesse grátis',
           log,
         });
         log(output_dir, 'video_pro', `Gatilhos complete: ${result.completed}/${result.count} hooks rendered`);

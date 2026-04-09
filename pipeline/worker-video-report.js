@@ -46,7 +46,9 @@ async function generateReport(opts) {
   // ── Build scene plan from research data ─────────────────────────────
 
   const scenes = [];
-  const brand = research.brand || taskName;
+  const brandRaw = research.brand || taskName;
+  const brand = brandRaw.toUpperCase();
+  const brandUrl = `${brand}.CLUB`;
 
   // Scene 1: Hook
   scenes.push({
@@ -139,7 +141,7 @@ async function generateReport(opts) {
   scenes.push({
     id: 'cta_01', type: 'cta', visual_type: 'cta',
     keyword: 'DADOS COMPLETOS', duration: 4,
-    cta_brand: brand.toUpperCase(),
+    cta_brand: brandUrl,
     cta_action: 'Veja o relatório completo',
     narration: `Acesse o relatório completo em ${brand}.`,
   });
@@ -148,7 +150,7 @@ async function generateReport(opts) {
   scenes.push({
     id: 'hold_01', type: 'cta', visual_type: 'cta',
     keyword: brand.toUpperCase(), duration: 3,
-    cta_brand: brand.toUpperCase(),
+    cta_brand: brandUrl,
     cta_action: '',
     narration: '',
   });
