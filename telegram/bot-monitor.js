@@ -225,6 +225,11 @@ function startContinuousMonitor(deps) {
 
         for (const [stageNum, agents] of Object.entries(stageAgentMap)) {
           const num = Number(stageNum);
+
+          // Only monitor stages that are active in this run
+          // activeStages is set by rerun (e.g. [3,4,5]) — if not set, monitor all
+          if (cv.activeStages && !cv.activeStages.includes(num)) continue;
+
           const stageKey = `stage_done:${relDir}:${num}`;
           if (monitoredSignals.has(stageKey)) continue;
 

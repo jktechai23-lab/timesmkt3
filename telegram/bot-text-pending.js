@@ -265,22 +265,22 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
       rerunStages,
       videoMode,
     });
+    // activeStages: from the lowest rerun stage through 5 (auto-advance may continue)
+    const minStage = Math.min(...rerunStages);
+    const activeStages = [];
+    for (let s = minStage; s <= 5; s++) activeStages.push(s);
+
     session.setCampaignV3(chatId, {
       payload,
       outputDir: payload.output_dir,
       approvalModes: payload.approval_modes || {},
       notifications: payload.notifications !== false,
+      activeStages,
     });
-    session.setCampaignV3Stage(chatId, Math.min(...rerunStages) - 1);
+    session.setCampaignV3Stage(chatId, minStage - 1);
 
-    // Mark stages NOT being rerun as already "done" so the monitor ignores their old logs
-    for (let stage = 1; stage <= 5; stage++) {
-      if (!rerunStages.includes(stage)) {
-        monitoredSignals.add(`stage_done:${payload.output_dir}:${stage}`);
-      }
-    }
-    // Clear signals only for stages being rerun
-    for (const stageNum of rerunStages) monitoredSignals.delete(`stage_done:${payload.output_dir}:${stageNum}`);
+    // Clear signals only for active stages
+    for (const stageNum of activeStages) monitoredSignals.delete(`stage_done:${payload.output_dir}:${stageNum}`);
     for (const sig of [...monitoredSignals]) {
       if (sig.startsWith(`phase:${payload.output_dir}:`)) monitoredSignals.delete(sig);
     }
