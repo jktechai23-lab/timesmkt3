@@ -168,7 +168,7 @@ async function generateReport(opts) {
     format: '9:16',
     width: 1080,
     height: 1920,
-    voice: 'bella',
+    voice: null,
     narration_file: null,
     music: null,
     music_volume: 0.15,
