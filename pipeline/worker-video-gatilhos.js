@@ -177,6 +177,9 @@ async function generateGatilhos(opts) {
       },
     ];
 
+    // Gatilhos are visual-only for now — no TTS audio
+    for (const s of scenes) s.narration = '';
+
     const totalDur = scenes.reduce((s, sc) => s + sc.duration, 0);
 
     const plan = {
@@ -184,7 +187,7 @@ async function generateGatilhos(opts) {
       video_length: totalDur,
       format: '9:16',
       width: 1080, height: 1920,
-      voice: 'bella',
+      voice: null,
       narration_file: null,
       music: null, music_volume: 0.15,
       scenes,

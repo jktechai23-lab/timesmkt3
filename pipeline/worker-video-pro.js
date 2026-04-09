@@ -100,7 +100,7 @@ function createWorkerVideoProHandler({
 
     if (video_template === 'gatilhos') {
       try {
-        const brandCtx = readBrandContext ? readBrandContext(projectRoot, project_dir) : {};
+        const brandCtx = (readBrandContext ? readBrandContext(projectRoot, project_dir) : null) || {};
         const result = await generateGatilhos({
           projectRoot, outputDir: output_dir, projectDir: project_dir,
           taskName: task_name, stylePreset: job.data.style_preset || 'inema_hightech',

@@ -153,6 +153,10 @@ async function generateReport(opts) {
     narration: '',
   });
 
+  // Report is visual-only — no TTS narration audio
+  // Clear narration field so FFmpeg doesn't require audio file
+  for (const s of scenes) s.narration = '';
+
   // Calculate total duration
   const totalDur = scenes.reduce((s, sc) => s + sc.duration, 0);
 
