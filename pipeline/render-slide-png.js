@@ -413,19 +413,42 @@ async function renderAllSlides(plan, preset, imagesDir, assetsDir, width, height
   const slidePNGs = {};
 
   const imgExts = ['.jpg', '.jpeg', '.png', '.webp'];
+
+  // Folders that contain brand/text images — skip entirely
+  const skipDirs = ['logo', 'logos', 'brand', 'icons'];
+
+  // Filename patterns that indicate text/branding — skip these images
+  const skipPatterns = /banner|logo_|oficial_|badge_|stats_|apresenta|convite|_texto|texto_|_text|clean_|semcoroa|interno_|premium_|inema_.*v\d|classico|gold_/i;
+
   const collectImages = (dir) => {
     if (!dir || !fs.existsSync(dir)) return [];
     const results = [];
     const walk = (d) => {
       for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
-        if (entry.isDirectory()) walk(path.join(d, entry.name));
-        else if (imgExts.includes(path.extname(entry.name).toLowerCase())) results.push(path.join(d, entry.name));
+        if (entry.isDirectory()) {
+          // Skip brand/logo directories
+          if (skipDirs.includes(entry.name.toLowerCase())) continue;
+          walk(path.join(d, entry.name));
+        } else if (imgExts.includes(path.extname(entry.name).toLowerCase())) {
+          // Skip files with brand/text patterns in name
+          if (skipPatterns.test(entry.name)) continue;
+          results.push(path.join(d, entry.name));
+        }
       }
     };
     walk(dir);
     return results;
   };
-  const availableImages = [...collectImages(imagesDir), ...collectImages(assetsDir)];
+
+  const allImages = [...collectImages(imagesDir), ...collectImages(assetsDir)];
+  const availableImages = allImages;
+
+  if (availableImages.length === 0) {
+    console.log('⚠ No clean photographic images found — using solid background from preset');
+    console.log('  Tip: add photos to assets/photos/ for better video backgrounds');
+  } else {
+    console.log(`  Found ${availableImages.length} clean images for backgrounds`);
+  }
 
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i];
