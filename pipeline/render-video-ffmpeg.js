@@ -274,9 +274,11 @@ async function renderVideo(scenePlanPath, outputPath) {
 
       // ── Motion config ─────────────────────────────────────────────────────────
       // Generated visuals (chart, text_card, list, split) use static display — no motion
+      // Brand images (logo, banner, oficial) must NEVER be zoomed or cropped
       const motionConfig = scene.motion || {};
       const motionTypes  = ['zoom_in', 'zoom_out', 'pan_right', 'pan_left'];
-      const motionType   = isGeneratedVisual ? 'static' : (motionConfig.type || motionTypes[i % motionTypes.length]);
+      const isBrandImage = imgSrc && /logo|oficial|banner|marca|badge|brand/i.test(path.basename(imgSrc));
+      const motionType   = (isGeneratedVisual || isBrandImage) ? 'static' : (motionConfig.type || motionTypes[i % motionTypes.length]);
       const zoomStart    = motionConfig.zoom_start ?? 1.0;
       const zoomEnd      = motionConfig.zoom_end   ?? 1.08;
 
