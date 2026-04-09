@@ -291,8 +291,8 @@ async function renderVideo(scenePlanPath, outputPath) {
       // ── image_type & has_text detection ──────────────────────────────────────
       const imageType = scene.image_type || 'raw';
       const isBanner  = imageType === 'banner';
-      // Generated visuals already have their text baked in — treat like imageHasText
-      const imageHasText = isGeneratedVisual || scene.image_has_text || scene.has_text ||
+      // Slides and generated visuals have text baked in — treat like imageHasText
+      const imageHasText = isSlide || isGeneratedVisual || scene.image_has_text || scene.has_text ||
         (imgSrc && /(_post|_stories|carousel_|oficial_|logo_|instagram|facebook|_ad\.|banner|calendar)/.test(imgSrc)) ||
         isBanner;
 
@@ -304,8 +304,9 @@ async function renderVideo(scenePlanPath, outputPath) {
 
       // ── Ken Burns zoompan filter ──────────────────────────────────────────────
       // Images with embedded text: zoom=1.0 (static) to avoid cropping text
+      // Exception: slides have text baked in but SHOULD have motion (auto-assigned)
       let kbFilter = '';
-      if (imageHasText) {
+      if (imageHasText && !isSlide) {
         kbFilter = `zoompan=z='1.0':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${totalFrames}:s=${vidW}x${vidH}:fps=${fps}`;
       } else if (motionType === 'zoom_in') {
         kbFilter = `zoompan=z='${zoomStart}+(${zoomEnd}-${zoomStart})*on/${totalFrames}':` +
@@ -333,7 +334,7 @@ async function renderVideo(scenePlanPath, outputPath) {
       let vfParts = [];
 
       if (imgSrc && fs.existsSync(imgSrc)) {
-        if (isBanner || imageType === 'clip' || imageHasText) {
+        if (!isSlide && (isBanner || imageType === 'clip' || imageHasText)) {
           // Images with text (carousel 1:1 → reels 9:16): blurred background + sharp center
           // Technique: scale image to fill 9:16 with heavy blur as background,
           // then overlay the original scaled to fit on top — no cropping, no black bars

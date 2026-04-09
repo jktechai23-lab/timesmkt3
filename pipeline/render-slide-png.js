@@ -407,13 +407,22 @@ async function renderAllSlides(plan, preset, imagesDir, assetsDir, width, height
   const scenes = plan.scenes || [];
   const slidePNGs = {};
 
-  // Collect available images for cycling
+  // Collect available images recursively (searches subdirectories)
   const imgExts = ['.jpg', '.jpeg', '.png', '.webp'];
   const collectImages = (dir) => {
     if (!dir || !fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir)
-      .filter(f => imgExts.includes(path.extname(f).toLowerCase()))
-      .map(f => path.join(dir, f));
+    const results = [];
+    const walk = (d) => {
+      for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          walk(path.join(d, entry.name));
+        } else if (imgExts.includes(path.extname(entry.name).toLowerCase())) {
+          results.push(path.join(d, entry.name));
+        }
+      }
+    };
+    walk(dir);
+    return results;
   };
   const availableImages = [...collectImages(imagesDir), ...collectImages(assetsDir)];
 
