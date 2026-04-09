@@ -277,6 +277,13 @@ AUDIO NARRATION (${ttsProviderLabel} available):
 - Generate narration: node pipeline/generate-audio.js <output.mp3> "<script>" [rachel|bella|domi|antoni|josh|arnold]${selectedTtsProvider ? ` --provider ${selectedTtsProvider}` : ''}
 - Save as: ${output_dir}/audio/${task_name}_video_0N_narration.mp3
 - Recommended voices: rachel (warm/emotional), bella (clear/friendly), domi (confident), antoni (professional), josh (deep/warm), arnold (bold/energetic)
+
+NARRATION SCRIPT RULES (TTS reads exactly what you write):
+- NEVER use currency symbols: "R$ 10" → "dez reais" or just "dez"
+- NEVER use abbreviations: "%" → "por cento", "R$" → "reais", "US$" → "dólares"
+- Write numbers by extenso: "16%" → "dezesseis por cento", "3x" → "três vezes"
+- Write URLs spoken form: "inema.club" → "inema ponto club"
+- Avoid special characters the TTS might misread: &, @, #, /, etc.
 ${musicInstructions}` : `
 AUDIO: no TTS provider configured. Generate silent videos. Narration scripts only.
 ${musicInstructions}`;
@@ -1004,7 +1011,11 @@ RULES:
 - When narration describes visually → use "photo"
 - chart/list scenes: 5-8s minimum (time to read)
 - photo scenes: 2-3s (visual rhythm)
-- Every scene MUST have "narration" field
+- Every scene MUST have "narration" field written for TTS:
+  - NEVER currency symbols: "R$ 10" → "dez reais" or "dez"
+  - NEVER abbreviations: "%" → "por cento", "3x" → "três vezes"
+  - Numbers by extenso: "16%" → "dezesseis por cento"
+  - URLs: "inema.club" → "inema ponto club"
 - keyword must be related to what's being said (1-3 words, impactful)
 ${visualTypeInstructions}
 
