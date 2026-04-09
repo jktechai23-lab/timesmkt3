@@ -1380,6 +1380,13 @@ Salve o JSON corrigido em: ${planPath}`;
 
         try {
           const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
+
+          // Ensure narration_file is set (agent may leave it null in simples mode)
+          const videoIdx = parseInt(idx, 10) - 1;
+          if (!plan.narration_file && !plan.audio && narrationTimings[videoIdx]?.file) {
+            plan.narration_file = narrationTimings[videoIdx].file;
+          }
+
           const vidW = plan.width || 1080;
           const vidH = plan.height || 1920;
           const tmpSlideDir = path.join(absVideoDir, `slides_${idx}`);
