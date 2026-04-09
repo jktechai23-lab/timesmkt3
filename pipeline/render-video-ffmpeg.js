@@ -269,6 +269,7 @@ async function renderVideo(scenePlanPath, outputPath) {
 
       // ── Visual type detection ──────────────────────────────────────────────
       const visualType = scene.visual_type || 'photo';
+      const isSlide = scene._slide === true;
       const isGeneratedVisual = visualType !== 'photo' && visualPNGs[i];
 
       // ── Motion config ─────────────────────────────────────────────────────────
