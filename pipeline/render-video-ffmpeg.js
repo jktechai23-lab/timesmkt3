@@ -226,8 +226,10 @@ async function renderVideo(scenePlanPath, outputPath) {
 
   try {
     // Step 0: Pre-render non-photo visual_types (chart, text_card, list, split) to PNG
+    // Skip if scenes already have slide PNGs (_slide: true) — slides are pre-rendered by worker
     const visualPNGs = {};
-    const hasVisualTypes = scenes.some(s => s.visual_type && s.visual_type !== 'photo');
+    const hasSlides = scenes.some(s => s._slide === true);
+    const hasVisualTypes = !hasSlides && scenes.some(s => s.visual_type && s.visual_type !== 'photo');
     if (hasVisualTypes) {
       console.log('Pre-rendering visual_type scenes to PNG...');
       for (let i = 0; i < scenes.length; i++) {
