@@ -53,8 +53,9 @@ async function generateReport(opts) {
   // ── Build scene plan from research data ─────────────────────────────
 
   const scenes = [];
-  const brandRaw = research.brand || taskName;
-  const brand = brandRaw.toUpperCase();
+  // Get brand from research, not from taskName (which is c0056-xxx)
+  const brandRaw = research.brand || '';
+  const brand = brandRaw ? brandRaw.toUpperCase() : 'INEMA';
   const brandUrl = `${brand}.CLUB`;
 
   // Scene 1: Hook
