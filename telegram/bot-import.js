@@ -276,27 +276,29 @@ function registerImportCommand(bot, { projectRoot, session }) {
     const raw = ctx.match?.trim();
     if (!raw) {
       return ctx.reply(
-        '<b>/import — Copiar assets para pasta importa/</b>\n\n'
-        + 'Uso: <code>/import &lt;campanhas&gt; &lt;origem&gt; [modificador]</code>\n\n'
+        '<b>/import — Copiar assets para pasta imports/</b>\n\n'
+        + 'Uso: <code>/import &lt;campanhas&gt; &lt;origem&gt;...</code>\n\n'
         + '<b>Campanhas:</b>\n'
         + '• <code>c55 c56</code> — lista\n'
         + '• <code>c55-c59</code> — range\n'
         + '• <code>todos</code> — todas do projeto\n\n'
-        + '<b>Origens:</b>\n'
+        + '<b>Origens (pode combinar várias):</b>\n'
         + '• <code>videos</code> — apenas video/*.mp4\n'
         + '• <code>ads</code> — apenas ads/*.png\n'
         + '• <code>imgs</code> — apenas imgs/*.jpg\n'
         + '• <code>report</code> — pasta report/ completa\n'
         + '• <code>gatilhos</code> — pasta gatilhos/ completa\n\n'
-        + '<b>Modificadores (dentro de report/gatilhos):</b>\n'
-        + '• <code>videos</code> — só os .mp4\n'
-        + '• <code>ads</code> — só os carousels .png\n\n'
+        + '<b>Modificadores (após report/gatilhos):</b>\n'
+        + '• <code>report videos</code> — só o .mp4 do report\n'
+        + '• <code>report ads</code> — só os carousels do report\n'
+        + '• <code>gatilhos videos</code> — só os .mp4 dos gatilhos\n'
+        + '• <code>gatilhos ads</code> — só os carousels dos gatilhos\n\n'
         + '<b>Exemplos:</b>\n'
-        + '<code>/import c55 c56 videos</code>\n'
-        + '<code>/import c55-c59 report ads</code>\n'
+        + '<code>/import c55 c56 videos ads</code>\n'
+        + '<code>/import c55-c59 report</code>\n'
         + '<code>/import todos gatilhos videos</code>\n'
-        + '<code>/import c56 gatilhos</code>\n\n'
-        + '<b>Destino:</b> <code>' + projectDir + '/importa/</code>',
+        + '<code>/import c56 videos ads gatilhos report</code>\n\n'
+        + '<b>Destino:</b> <code>' + projectDir + '/imports/</code>',
         { parse_mode: 'HTML' },
       );
     }
@@ -304,26 +306,37 @@ function registerImportCommand(bot, { projectRoot, session }) {
     // Parse tokens
     const tokens = raw.split(/\s+/).filter(Boolean);
 
-    // Separate campaign tokens from source/modifier
-    const sourceIdx = tokens.findIndex(t => VALID_SOURCES.includes(t.toLowerCase()));
-    if (sourceIdx === -1) {
+    // Find first source token — anything before is campaigns
+    const firstSourceIdx = tokens.findIndex(t => VALID_SOURCES.includes(t.toLowerCase()));
+    if (firstSourceIdx === -1) {
       return ctx.reply(`Origem não encontrada. Use: ${VALID_SOURCES.join(', ')}`);
     }
 
-    const campaignTokens = tokens.slice(0, sourceIdx);
-    const source = tokens[sourceIdx].toLowerCase();
-    const modifier = tokens[sourceIdx + 1]?.toLowerCase();
-
+    const campaignTokens = tokens.slice(0, firstSourceIdx);
     if (campaignTokens.length === 0) {
       return ctx.reply('Especifique as campanhas. Ex: <code>/import c55 videos</code>', { parse_mode: 'HTML' });
     }
 
-    if (modifier && !VALID_MODIFIERS.includes(modifier)) {
-      return ctx.reply(`Modificador inválido: "${modifier}". Use: ${VALID_MODIFIERS.join(', ')} ou omita.`);
-    }
-
-    if (modifier && !['report', 'gatilhos'].includes(source)) {
-      return ctx.reply(`Modificador "${modifier}" só vale para origens "report" ou "gatilhos".`);
+    // Parse remaining tokens — each token is a source (videos, ads, imgs, report, gatilhos)
+    // Modifier rule: 'videos' or 'ads' right after 'report' or 'gatilhos' is a modifier
+    // unless no modifier is needed (then both are separate sources)
+    const sourceSpecs = [];
+    let i = firstSourceIdx;
+    while (i < tokens.length) {
+      const tok = tokens[i].toLowerCase();
+      if (!VALID_SOURCES.includes(tok)) {
+        return ctx.reply(`Token inesperado: "${tok}". Origens válidas: ${VALID_SOURCES.join(', ')}`);
+      }
+      // If this is report/gatilhos and the next token is videos/ads,
+      // treat next as modifier (user wants filtered content from this source)
+      const next = tokens[i + 1]?.toLowerCase();
+      if (['report', 'gatilhos'].includes(tok) && next && VALID_MODIFIERS.includes(next)) {
+        sourceSpecs.push({ source: tok, modifier: next });
+        i += 2;
+      } else {
+        sourceSpecs.push({ source: tok, modifier: null });
+        i += 1;
+      }
     }
 
     // Get all campaigns in project
@@ -343,10 +356,10 @@ function registerImportCommand(bot, { projectRoot, session }) {
       return ctx.reply(`Nenhuma campanha encontrada para: ${campaignQuery}`);
     }
 
-    const importDir = path.resolve(projectRoot, projectDir, 'importa');
+    const importDir = path.resolve(projectRoot, projectDir, 'imports');
     fs.mkdirSync(importDir, { recursive: true });
 
-    const label = modifier ? `${source} ${modifier}` : source;
+    const label = sourceSpecs.map(ss => ss.modifier ? `${ss.source} ${ss.modifier}` : ss.source).join(' + ');
     await ctx.reply(
       `📦 Importando <b>${label}</b> de <b>${matchedCampaigns.length}</b> campanha(s)...\n\n`
       + matchedCampaigns.map(c => `• ${c}`).join('\n'),
@@ -357,13 +370,19 @@ function registerImportCommand(bot, { projectRoot, session }) {
     const perCampaign = [];
     for (const campaign of matchedCampaigns) {
       const campaignDir = path.join(outputsDir, campaign);
-      try {
-        const count = processImport(campaign, campaignDir, importDir, source, modifier);
-        totalCopied += count;
-        perCampaign.push(`${shortCampaign(campaign)}: ${count}`);
-      } catch (e) {
-        perCampaign.push(`${shortCampaign(campaign)}: erro (${e.message.slice(0, 50)})`);
+      let campaignCount = 0;
+      const errors = [];
+      for (const spec of sourceSpecs) {
+        try {
+          const count = processImport(campaign, campaignDir, importDir, spec.source, spec.modifier);
+          campaignCount += count;
+        } catch (e) {
+          errors.push(`${spec.source}: ${e.message.slice(0, 40)}`);
+        }
       }
+      totalCopied += campaignCount;
+      const errSuffix = errors.length > 0 ? ` (${errors.join(', ')})` : '';
+      perCampaign.push(`${shortCampaign(campaign)}: ${campaignCount}${errSuffix}`);
     }
 
     await ctx.reply(

@@ -168,7 +168,7 @@ npm run pipeline:run:payload '<json>'    # run with inline JSON payload
 
 ## Comando /import
 
-Copia assets de múltiplas campanhas para uma pasta central `importa/` dentro do projeto.
+Copia assets de múltiplas campanhas para uma pasta central `imports/` dentro do projeto.
 
 **Sintaxe:**
 ```
@@ -195,7 +195,7 @@ Copia assets de múltiplas campanhas para uma pasta central `importa/` dentro do
 
 **Destino:**
 ```
-prj/<projeto>/importa/
+prj/<projeto>/imports/
 ├── videos/
 │   ├── c55_quick.mp4
 │   ├── c55_pro_data_story.mp4
