@@ -166,6 +166,59 @@ npm run pipeline:run:payload '<json>'    # run with inline JSON payload
 
 ---
 
+## Comando /import
+
+Copia assets de múltiplas campanhas para uma pasta central `importa/` dentro do projeto.
+
+**Sintaxe:**
+```
+/import <campanhas> <origem> [modificador]
+```
+
+**Campanhas:**
+- `c55 c56` — lista
+- `c55-c59` — range
+- `todos` — todas as campanhas do projeto
+
+**Origens:**
+| Origem | O que copia |
+|---|---|
+| `videos` | Apenas `video/*.mp4` (quick + pro) |
+| `ads` | Apenas `ads/*.png` (carousels do ad creative designer) |
+| `imgs` | Apenas `imgs/*.jpg` (imagens geradas) |
+| `report` | Pasta `report/` completa (separada em videos/ e ads/ no destino) |
+| `gatilhos` | Pasta `gatilhos/` completa (todos os hooks) |
+
+**Modificadores** (dentro de `report` ou `gatilhos`):
+- `videos` — só os MP4
+- `ads` — só os carousels PNG
+
+**Destino:**
+```
+prj/<projeto>/importa/
+├── videos/
+│   ├── c55_quick.mp4
+│   ├── c55_pro_data_story.mp4
+│   ├── c55_report.mp4
+│   └── c55_g01_obsolescencia.mp4
+└── ads/
+    ├── c55_ad_01/
+    ├── c55_report/
+    └── c55_g01_obsolescencia/
+```
+
+**Exemplos:**
+```
+/import c55 c56 videos              # videos de c55 e c56
+/import c55-c59 report               # report de todas entre c55-c59
+/import todos gatilhos videos        # só os videos dos gatilhos
+/import c56 gatilhos ads             # só os carousels dos gatilhos de c56
+```
+
+Reimports sobrescrevem o destino.
+
+---
+
 # Agents and Responsibilities
 
 ## 0. Creative Director

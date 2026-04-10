@@ -138,8 +138,9 @@ async function generateGatilhos(opts) {
 
   for (let hi = 0; hi < hooks.length; hi++) {
     const h = hooks[hi];
-    const hookSlug = slugify(h.hook) || `hook_${hi + 1}`;
-    const hookDir = path.join(gatilhosDir, `hook_${String(hi + 1).padStart(2, '0')}_${hookSlug}`);
+    const hookSlug = slugify(h.hook) || `g${hi + 1}`;
+    const gNum = `g${String(hi + 1).padStart(2, '0')}`;
+    const hookDir = path.join(gatilhosDir, `${gNum}_${hookSlug}`);
     fs.mkdirSync(hookDir, { recursive: true });
 
     log(outputDir, 'video_pro', `Gatilho ${hi + 1}/${hooks.length}: "${h.hook.slice(0, 50)}..."`);

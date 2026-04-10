@@ -30,6 +30,7 @@ const { startContinuousMonitor } = require('./bot-monitor');
 const { createBotRuntime } = require('./bot-runtime');
 const { registerStatusCommand } = require('./bot-status');
 const { registerRerunCommands, normalizeProjectFolder } = require('./bot-rerun');
+const { registerImportCommand } = require('./bot-import');
 const { createPendingTextHandlers } = require('./bot-text-pending');
 const {
   createCampaignOutputHandlers,
@@ -113,6 +114,8 @@ registerRerunCommands(bot, {
   resolveStageAlias,
   buildConfigTable,
 });
+
+registerImportCommand(bot, { projectRoot: PROJECT_ROOT, session });
 
 const BOT_ACK = 'inemamkt >';
 
@@ -233,6 +236,7 @@ bot.command('start', async (ctx) => {
     `/continue &lt;campanha&gt; — continuar de onde parou\n` +
     `/status — ver status do pipeline\n` +
     `/enviar &lt;campanha&gt; [tipo] — receber arquivos\n` +
+    `/import &lt;campanhas&gt; &lt;origem&gt; — exportar para importa/\n` +
     `/cancel — cancelar pipeline ativo\n` +
     `/projetos — listar/mudar projeto\n` +
     `/help — menu completo`,
@@ -256,6 +260,7 @@ bot.command('help', async (ctx) => {
     `/outputs — listar campanhas\n` +
     `/relatorio &lt;campanha&gt; — resumo de arquivos\n` +
     `/enviar &lt;campanha&gt; [imagens|videos|audio|copy|tudo]\n` +
+    `/import &lt;campanhas&gt; &lt;origem&gt; — copiar assets para importa/\n` +
     `/aprovar — re-verificar aprovacoes pendentes\n` +
     `/modos [etapa] [humano|agente|auto]\n\n` +
 
