@@ -1293,6 +1293,17 @@ bot.on('message:text', async (ctx) => {
 
   if (await handlePendingCampaign(ctx, chatId, s, text)) return;
 
+  // ── Guard: if a pipeline is running, block free text and offer commands ──
+  if (s.runningTask) {
+    await ctx.reply(
+      `⏳ <b>Pipeline rodando:</b> ${s.runningTask.taskName}\n\n`
+      + `Use /status para acompanhar ou /cancel para cancelar.\n\n`
+      + `<i>Mensagens livres são ignoradas enquanto há pipeline ativo.</i>`,
+      { parse_mode: 'HTML' },
+    );
+    return;
+  }
+
   // ── Detect rerun intent in free text ─────────────────────────────────
   const rerunKeywords = /\b(recri[ae]|refaz|refazer|reprocessa|re-?run|gera? novas?|nova vers[ãa]o|outra vers[ãa]o|recriar)\b/i;
   const campaignRef = text.match(/\b(c\d{1,4})\b/i);
