@@ -29,6 +29,9 @@ async function generateGatilhos(opts) {
     projectRoot, outputDir, projectDir, taskName,
     stylePreset = 'inema_hightech',
     ctaBrand = 'INEMA.CLUB', ctaAction = 'Acesse grátis',
+    videoAudio = 'narration', // 'narration' | 'none' | 'music'
+    narrator = 'bella',
+    ttsProvider = 'auto',
     log,
   } = opts;
 
@@ -200,8 +203,45 @@ async function generateGatilhos(opts) {
       },
     ];
 
-    // Gatilhos are visual-only for now — no TTS audio
-    for (const s of scenes) s.narration = '';
+    // ── Narration per hook ──────────────────────────────────────────
+    const wantsNarration = videoAudio === 'narration' || videoAudio === 'both';
+    let hookNarrationFile = null;
+
+    if (wantsNarration) {
+      // Build narration: hook text + pain + trend (short, <30s spoken)
+      const scriptParts = [
+        h.hook,
+        painText ? painText : '',
+        trendText ? trendText.slice(0, 80) : '',
+        `Acesse ${ctaBrand}.`,
+      ].filter(Boolean);
+      const script = scriptParts.join('. ').slice(0, 500);
+
+      // Set narration text per scene
+      scenes[0].narration = h.hook;
+      scenes[1].narration = painText || painTrigger || '';
+      scenes[2].narration = trendText.slice(0, 80) || '';
+      scenes[3].narration = `Acesse ${ctaBrand}.`;
+      scenes[4].narration = '';
+
+      hookNarrationFile = path.join(hookDir, 'narration.mp3');
+      if (script.length > 20) {
+        try {
+          const generateAudio = path.resolve(projectRoot, 'pipeline/generate-audio.js');
+          const args = [generateAudio, hookNarrationFile, script, narrator];
+          if (ttsProvider && ttsProvider !== 'auto') args.push('--provider', ttsProvider);
+          execFileSync('node', args, { cwd: projectRoot, stdio: 'pipe', timeout: 60000 });
+          log(outputDir, 'video_pro', `  Narration generated: ${path.basename(hookDir)}/narration.mp3`);
+        } catch (e) {
+          log(outputDir, 'video_pro', `  Narration failed: ${e.message.slice(0, 100)}`);
+          hookNarrationFile = null;
+        }
+      } else {
+        hookNarrationFile = null;
+      }
+    } else {
+      for (const s of scenes) s.narration = '';
+    }
 
     const totalDur = scenes.reduce((s, sc) => s + sc.duration, 0);
 
@@ -210,8 +250,8 @@ async function generateGatilhos(opts) {
       video_length: totalDur,
       format: '9:16',
       width: 1080, height: 1920,
-      voice: null,
-      narration_file: null,
+      voice: wantsNarration ? narrator : null,
+      narration_file: hookNarrationFile,
       music: null, music_volume: 0.15,
       scenes,
     };

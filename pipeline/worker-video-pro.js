@@ -87,7 +87,11 @@ function createWorkerVideoProHandler({
       try {
         const result = await generateReport({
           projectRoot, outputDir: output_dir, projectDir: project_dir,
-          taskName: task_name, stylePreset: job.data.style_preset || 'inema_hightech', log,
+          taskName: task_name, stylePreset: job.data.style_preset || 'inema_hightech',
+          videoAudio: job.data.video_audio || 'narration',
+          narrator: job.data.narrator || 'bella',
+          ttsProvider: job.data.tts_provider || 'auto',
+          log,
         });
         log(output_dir, 'video_pro', `Report complete: ${result.carousels} carousels, video: ${result.video ? 'yes' : 'no'}`);
         log(output_dir, 'video_pro', 'Completed successfully.');
@@ -116,6 +120,9 @@ function createWorkerVideoProHandler({
         const result = await generateGatilhos({
           projectRoot, outputDir: output_dir, projectDir: project_dir,
           taskName: task_name, stylePreset: job.data.style_preset || 'inema_hightech',
+          videoAudio: job.data.video_audio || 'narration',
+          narrator: job.data.narrator || 'bella',
+          ttsProvider: job.data.tts_provider || 'auto',
           ctaBrand,
           ctaAction: 'Acesse grátis',
           log,

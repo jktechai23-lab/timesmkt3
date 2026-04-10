@@ -20,10 +20,17 @@ function slugify(str) {
 
 /**
  * Generate report carousel + video from research data.
- * @param {object} opts - { projectRoot, outputDir, projectDir, taskName, stylePreset, log }
+ * @param {object} opts - { projectRoot, outputDir, projectDir, taskName, stylePreset, videoAudio, narrator, ttsProvider, log }
  */
 async function generateReport(opts) {
-  const { projectRoot, outputDir, projectDir, taskName, stylePreset = 'inema_hightech', log } = opts;
+  const {
+    projectRoot, outputDir, projectDir, taskName,
+    stylePreset = 'inema_hightech',
+    videoAudio = 'narration', // 'narration' | 'none' | 'music'
+    narrator = 'bella',
+    ttsProvider = 'auto',
+    log,
+  } = opts;
 
   const researchPath = path.resolve(projectRoot, outputDir, 'research_results.json');
   if (!fs.existsSync(researchPath)) {
@@ -155,9 +162,57 @@ async function generateReport(opts) {
     narration: '',
   });
 
-  // Report is visual-only — no TTS narration audio
-  // Clear narration field so FFmpeg doesn't require audio file
-  for (const s of scenes) s.narration = '';
+  // ── Narration: build script from scene content ────────────────────────
+  const wantsNarration = videoAudio === 'narration' || videoAudio === 'both';
+  let narrationFile = null;
+
+  if (wantsNarration) {
+    // Build narration script from scene card_title + card_body
+    const scriptParts = scenes
+      .filter(s => s.type !== 'cta' && (s.card_title || s.list_title || s.keyword))
+      .map(s => {
+        if (s.card_title && s.card_body) return `${s.card_title}. ${s.card_body}`;
+        if (s.card_title) return s.card_title;
+        if (s.list_title && s.list_items?.length) return `${s.list_title}: ${s.list_items.slice(0, 3).join(', ')}`;
+        return '';
+      })
+      .filter(Boolean);
+
+    const script = scriptParts.join('. ').slice(0, 2000);
+    const audioDir = path.resolve(projectRoot, outputDir, 'report');
+    narrationFile = path.join(audioDir, 'report_narration.mp3');
+
+    if (script.length > 20) {
+      log(outputDir, 'video_pro', `Generating report narration (${script.length} chars, voice: ${narrator})...`);
+      try {
+        const generateAudio = path.resolve(projectRoot, 'pipeline/generate-audio.js');
+        const args = [generateAudio, narrationFile, script, narrator];
+        if (ttsProvider && ttsProvider !== 'auto') args.push('--provider', ttsProvider);
+        execFileSync('node', args, { cwd: projectRoot, stdio: 'pipe', timeout: 120000 });
+        log(outputDir, 'video_pro', `Report narration generated: ${path.basename(narrationFile)}`);
+      } catch (e) {
+        log(outputDir, 'video_pro', `Report narration failed: ${e.message.slice(0, 150)}`);
+        narrationFile = null;
+      }
+    } else {
+      narrationFile = null;
+    }
+
+    // Set narration text per scene (for timing sync)
+    for (let si = 0; si < scenes.length; si++) {
+      const s = scenes[si];
+      if (s.type === 'cta' || (!s.card_title && !s.list_title)) {
+        s.narration = '';
+      } else if (s.card_title && s.card_body) {
+        s.narration = `${s.card_title}. ${s.card_body}`;
+      } else {
+        s.narration = s.card_title || s.list_title || '';
+      }
+    }
+  } else {
+    // Mudo — clear all narration
+    for (const s of scenes) s.narration = '';
+  }
 
   // Calculate total duration
   const totalDur = scenes.reduce((s, sc) => s + sc.duration, 0);
@@ -168,8 +223,8 @@ async function generateReport(opts) {
     format: '9:16',
     width: 1080,
     height: 1920,
-    voice: null,
-    narration_file: null,
+    voice: wantsNarration ? narrator : null,
+    narration_file: narrationFile,
     music: null,
     music_volume: 0.15,
     scenes,
