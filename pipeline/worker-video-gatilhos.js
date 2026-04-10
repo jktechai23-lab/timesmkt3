@@ -121,6 +121,13 @@ async function generateGatilhos(opts) {
   };
   const bgImages = [...collectImages(imgsDir), ...collectImages(assetsDir)];
 
+  // ── Extract supporting data for enriching hooks ──────────────────────
+
+  const pains = (research.consumer_motivations || []).filter(p => p.pain_point || p.motivation);
+  const trends = (research.industry_trends || []).filter(t => t.trend || t.detail);
+
+  log(outputDir, 'video_pro', `Supporting data: ${pains.length} pain points, ${trends.length} trends`);
+
   // ── Generate each hook ──────────────────────────────────────────────
 
   const renderScript = path.resolve(projectRoot, 'pipeline/render-video-ffmpeg.js');
@@ -134,40 +141,56 @@ async function generateGatilhos(opts) {
 
     log(outputDir, 'video_pro', `Gatilho ${hi + 1}/${hooks.length}: "${h.hook.slice(0, 50)}..."`);
 
-    // Build 5 scene mini-plan (<30s)
+    // Match hook to a related pain point (cycle through available)
+    const pain = pains[hi % pains.length] || {};
+    const painText = pain.pain_point || pain.motivation || '';
+    const painTrigger = pain.emotional_trigger || pain.description || '';
+
+    // Match hook to a related data point (cycle through available)
+    const trend = trends[hi % trends.length] || {};
+    const trendText = trend.trend || '';
+    const trendDetail = trend.detail || '';
+
+    // Extract a keyword from the hook (first 2-3 impactful words)
+    const hookWords = h.hook.split(/\s+/).filter(w => w.length > 3).slice(0, 2).join(' ').toUpperCase() || 'ATENÇÃO';
+
+    // Build 5 scene mini-plan (<30s) — hook → dor → prova → CTA → hold
     const scenes = [
-      // Scene 1: Hook impact (text_card — narrativo style, big text)
+      // Scene 1: HOOK — frase de impacto (scroll-stopper)
       {
         id: 'hook', type: 'hook', visual_type: 'text_card',
-        keyword: 'GATILHO', duration: 4,
+        keyword: hookWords, duration: 4,
         card_title: h.hook.slice(0, 80),
         card_body: '',
-        narration: h.hook,
+        narration: '',
       },
-      // Scene 2: Emotional trigger
+      // Scene 2: PROBLEMA — a dor que o hook endereça
       {
-        id: 'emotion', type: 'problem', visual_type: 'text_card',
-        keyword: h.emotion ? h.emotion.split(' ').slice(0, 2).join(' ').toUpperCase() : 'POR QUÊ',
+        id: 'problema', type: 'problem', visual_type: 'text_card',
+        keyword: painText ? painText.split(' ').slice(0, 2).join(' ').toUpperCase() : 'O PROBLEMA',
         duration: 5,
-        card_title: h.emotion?.slice(0, 60) || 'Isso muda tudo.',
-        card_body: h.format?.slice(0, 80) || '',
-        narration: h.emotion?.slice(0, 80) || 'Isso muda tudo para o seu negócio.',
+        card_title: painText.slice(0, 60) || 'O mercado mudou.',
+        card_body: painTrigger.slice(0, 100) || '',
+        narration: '',
       },
-      // Scene 3: Photo breathing space
+      // Scene 3: PROVA — dado que sustenta (do research trends)
       {
-        id: 'visual', type: 'transition', visual_type: 'photo',
-        keyword: 'AÇÃO', duration: 3,
-        narration: 'E você pode começar agora.',
+        id: 'prova', type: 'data', visual_type: trendText ? 'text_card' : 'photo',
+        keyword: 'OS DADOS',
+        duration: 5,
+        card_title: trendText.slice(0, 60) || '',
+        card_body: trendDetail.slice(0, 100) || '',
+        narration: '',
       },
-      // Scene 4: CTA
+      // Scene 4: CTA — marca + ação clara
       {
         id: 'cta', type: 'cta', visual_type: 'cta',
-        keyword: 'COMECE', duration: 5,
+        keyword: 'COMECE AGORA', duration: 4,
         cta_brand: ctaBrand,
         cta_action: h.cta || ctaAction,
-        narration: h.cta || `Acesse ${ctaBrand} e comece agora.`,
+        narration: '',
       },
-      // Scene 5: Silent hold
+      // Scene 5: HOLD — CTA silencioso
       {
         id: 'hold', type: 'cta', visual_type: 'cta',
         keyword: ctaBrand, duration: 3,
