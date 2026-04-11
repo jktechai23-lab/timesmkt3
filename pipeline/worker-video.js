@@ -281,14 +281,22 @@ STEP 3 — Create scene plan for EACH video. Save to ${output_dir}/video/${task_
 
 RULES:
 - Use ONLY images from ads/ listed above — never generate or download new images
-- 4-6 scenes, 2-4 seconds each, totaling 10-20 seconds MAX
-- video_length MUST be 10-20 seconds — NEVER longer
+- 5-7 scenes. Narration scenes total 10-17 seconds + FINAL 3s SILENT HOLD = 13-20s total
+- video_length MUST be 13-20 seconds (includes the silent hold)
 - These carousel/ad images may have text in the center/body area
-- Last scene MUST be the CTA image from the ads
 - Each scene uses a DIFFERENT image
 - Motion: alternate between push-in, ken-burns-in, drift, breathe (never same 2x in a row)
 - Format: 9:16 (1080x1920) for Reels/Shorts/Stories
 - Every scene MUST have "narration" field with the exact transcript being spoken (or "" for silent)
+
+CTA + HOLD — MANDATORY CLOSING (read brand_identity.md for brand URL):
+- SECOND-TO-LAST scene: the CTA scene — MUST include the brand URL in text_overlay
+  Example for INEMA: text_overlay "INEMA.CLUB" or "ACESSE INEMA.CLUB"
+  Duration: 3 seconds, narration must end with "Acesse [URL]"
+- LAST scene: SILENT HOLD — 3 seconds, narration: "" (empty), same CTA image
+  text_overlay: brand URL again (e.g. "INEMA.CLUB"), big and centered
+  This gives viewers time to absorb the brand name
+- Total structure: hook → content → proof → CTA (3s with narration) → HOLD (3s silent)
 
 TYPOGRAPHY — MAGAZINE HEADLINE AT TOP (CRITICAL):
 - text_position: "top" default. Use "center" only when image has face at top. NEVER "bottom"

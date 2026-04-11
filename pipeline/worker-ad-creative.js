@@ -171,7 +171,13 @@ CRITICAL: ALL filenames MUST start with "${fnPrefix}_" prefix.
 Each slide/story must have a DIFFERENT visual concept and copy. The carousel should tell a progression:
 - Slide 1: Hook (attention grabber)
 - Slides 2-${carouselCount - 1}: Benefits, emotional moments, product features
-- Slide ${carouselCount}: CTA
+- Slide ${carouselCount}: CTA — MUST prominently display the brand URL/name from brand_identity.md (e.g. "INEMA.CLUB", "INEMA VIP") as the largest text element, with a clear action verb ("Acesse", "Comece agora", "Entre grátis")
+
+CRITICAL — BRAND PRESENCE:
+- The LAST slide (CTA) MUST show the brand URL/name in the largest text (e.g. "INEMA.CLUB")
+- The brand name should be instantly readable and memorable
+- ALSO include a subtext with a clear action ("Acesse grátis", "Comece hoje", etc.)
+- Read ${project_dir}/knowledge/brand_identity.md to find the exact brand URL to use
 
 Stories should be vertical, bold, quick-read — one key message per story with large text.`;
     } else if (hasCarousel) {
@@ -179,7 +185,16 @@ Stories should be vertical, bold, quick-read — one key message per story with 
 Generate ${image_count} carousel slides (1080x1080) — saved as ${fnPrefix}_carousel_01.png through ${fnPrefix}_carousel_0${image_count}.png.
 For EACH slide, create a separate HTML file and render via Playwright at 1080x1080.
 CRITICAL: ALL filenames MUST start with "${fnPrefix}_" prefix.
-Each slide must have different visual concept and copy, forming a narrative progression.`;
+Each slide must have different visual concept and copy, forming a narrative progression.
+
+Progression: Slide 1 (hook) → middle slides (benefits/story) → LAST slide (CTA with brand URL).
+
+CRITICAL — BRAND PRESENCE ON LAST SLIDE:
+- The LAST slide MUST prominently display the brand URL/name from brand_identity.md
+  Example: "INEMA.CLUB" as the largest text element
+- Include a clear action verb: "Acesse", "Comece agora", "Entre grátis"
+- The brand name must be instantly readable and memorable
+- Read ${project_dir}/knowledge/brand_identity.md to find the exact brand URL`;
     } else {
       imageInstructions = `
 Generate ${image_count} story images (1080x1920) — saved as ${fnPrefix}_story_01.png through ${fnPrefix}_story_0${image_count}.png.
