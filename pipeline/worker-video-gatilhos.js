@@ -125,17 +125,15 @@ async function generateGatilhos(opts) {
     return results;
   };
 
-  // Campaign images first (they match the topic), then carousel ads
-  // Generic assets from brand only as last resort — they may not match the topic
+  // Campaign images ONLY (they match the topic and are clean — no text)
+  // NEVER use ads/ (carousels have text baked in — overlay on top = unreadable)
+  // assets/ as last resort but filtered (no logos/banners/text)
+  // If nothing clean → solid background (no image)
   const campaignImages = collectImages(imgsDir);
-  const adsDir = path.resolve(projectRoot, outputDir, 'ads');
-  const adImages = collectImages(adsDir);
   const assetImages = collectImages(assetsDir);
   const bgImages = campaignImages.length > 0
     ? campaignImages
-    : adImages.length > 0
-      ? adImages
-      : assetImages;
+    : assetImages;
 
   if (bgImages.length === 0) {
     log(outputDir, 'video_pro', '⚠ No images found for gatilhos — using solid background');

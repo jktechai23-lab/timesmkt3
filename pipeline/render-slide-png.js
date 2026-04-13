@@ -415,10 +415,11 @@ async function renderAllSlides(plan, preset, imagesDir, assetsDir, width, height
   const imgExts = ['.jpg', '.jpeg', '.png', '.webp'];
 
   // Folders that contain brand/text images — skip entirely
-  const skipDirs = ['logo', 'logos', 'brand', 'icons'];
+  // ads/ contains carousels with baked-in text — NEVER use as background
+  const skipDirs = ['logo', 'logos', 'brand', 'icons', 'ads'];
 
   // Filename patterns that indicate text/branding — skip these images
-  const skipPatterns = /banner|logo_|oficial_|badge_|stats_|apresenta|convite|_texto|texto_|_text|clean_|semcoroa|interno_|premium_|inema_.*v\d|classico|gold_/i;
+  const skipPatterns = /banner|logo_|oficial_|badge_|stats_|apresenta|convite|_texto|texto_|_text|clean_|semcoroa|interno_|premium_|inema_.*v\d|classico|gold_|carousel_|_ad\.|_post\.|_story/i;
 
   const collectImages = (dir) => {
     if (!dir || !fs.existsSync(dir)) return [];
