@@ -53,111 +53,130 @@ async function generateReport(opts) {
   // ── Build scene plan from research data ─────────────────────────────
 
   const scenes = [];
-  // Get brand from research, not from taskName (which is c0056-xxx)
   const brandRaw = research.brand || '';
   const brand = brandRaw ? brandRaw.toUpperCase() : 'INEMA';
   const brandUrl = `${brand}.CLUB`;
+  const audience = research.target_audience || research.niche || '';
 
-  // Scene 1: Hook
+  // ── Scene 1: Hook — grab attention with the most impactful stat ────
+  const topTrend = (research.industry_trends || [])[0];
+  const hookText = topTrend?.trend || 'O mercado mudou. Você está preparado?';
   scenes.push({
-    id: 'hook_01', type: 'hook', visual_type: 'photo',
-    keyword: 'OS DADOS FALAM', duration: 2,
-    narration: `Os dados da pesquisa de ${brand} revelam oportunidades surpreendentes.`,
+    id: 'hook_01', type: 'hook', visual_type: 'text_card',
+    keyword: 'VOCÊ SABIA?', duration: 3,
+    card_title: hookText,
+    card_body: '',
+    narration: hookText,
   });
 
-  // Scene 2: Industry trends (chart)
-  if (research.industry_trends?.length > 0) {
+  // ── Scene 2: The real problem — pain point that resonates ──────────
+  const topPain = (research.consumer_motivations || [])[0];
+  if (topPain) {
+    const painTitle = topPain.pain_point || topPain.motivation || '';
+    const painBody = topPain.description || topPain.emotional_trigger || '';
+    scenes.push({
+      id: 'problem_01', type: 'problem', visual_type: 'text_card',
+      keyword: 'O DESAFIO', duration: 6,
+      card_title: painTitle,
+      card_body: painBody,
+      narration: `${painTitle}. ${painBody}`,
+    });
+  }
+
+  // ── Scene 3: Data that proves the problem — chart ──────────────────
+  if (research.industry_trends?.length >= 2) {
     const trends = research.industry_trends.slice(0, 4);
     scenes.push({
-      id: 'trend_01', type: 'data', visual_type: 'chart',
-      keyword: 'TENDÊNCIAS', duration: 7,
+      id: 'data_01', type: 'data', visual_type: 'chart',
+      keyword: 'OS NÚMEROS', duration: 8,
       chart_type: 'bar',
-      chart_title: 'Principais Tendências do Setor',
+      chart_title: 'O que os dados mostram',
       chart_data: trends.map((t, i) => ({
-        label: (t.trend || '').slice(0, 25),
+        label: (t.trend || '').slice(0, 30),
         value: t.intensity || t.relevance_score || (10 - i * 2),
       })),
-      narration: trends[0]?.detail?.slice(0, 100) || 'As tendências mostram crescimento acelerado.',
+      narration: trends.map(t => t.trend || '').join('. '),
     });
   }
 
-  // Scene 3: Consumer motivations (chart — pain intensity)
-  if (research.consumer_motivations?.length > 0) {
-    const pains = research.consumer_motivations.slice(0, 5);
+  // ── Scene 4: More pain — what's at stake ───────────────────────────
+  const secondPain = (research.consumer_motivations || [])[1];
+  if (secondPain) {
+    const painTitle = secondPain.pain_point || secondPain.motivation || '';
+    const trigger = secondPain.emotional_trigger || secondPain.description || '';
     scenes.push({
-      id: 'pain_01', type: 'data', visual_type: 'chart',
-      keyword: 'DORES DO MERCADO', duration: 7,
-      chart_type: 'bar',
-      chart_title: 'Intensidade das Dores (1-10)',
-      chart_data: pains.map(p => ({
-        label: (p.pain_point || p.motivation || '').slice(0, 20),
-        value: p.intensity || 7,
-      })),
-      narration: pains[0]?.description?.slice(0, 100) || 'As dores mais intensas do público-alvo.',
+      id: 'stake_01', type: 'problem', visual_type: 'text_card',
+      keyword: 'O QUE ESTÁ EM JOGO', duration: 6,
+      card_title: painTitle,
+      card_body: trigger,
+      narration: `${painTitle}. ${trigger}`,
     });
   }
 
-  // Scene 4: Market opportunity (text_card)
-  const opp = research.market_opportunity || research.opportunities || {};
-  if (opp.summary || opp.size_estimate) {
-    scenes.push({
-      id: 'opp_01', type: 'insight', visual_type: 'text_card',
-      keyword: 'OPORTUNIDADE', duration: 6,
-      card_title: opp.summary?.slice(0, 60) || 'Oportunidade de Mercado',
-      card_body: opp.size_estimate?.slice(0, 120) || opp.urgency?.slice(0, 120) || '',
-      narration: opp.summary?.slice(0, 100) || 'Uma oportunidade significativa no mercado.',
-    });
-  }
-
-  // Scene 5: Competitor gaps (text_card)
+  // ── Scene 5: What competitors are missing — your advantage ─────────
   if (research.competitor_messaging?.length > 0) {
     const comp = research.competitor_messaging[0];
+    const gap = comp.weakness || comp.gap || comp.inema_gap || '';
+    const compName = comp.competitor || comp.competitor_type || 'a concorrência';
     scenes.push({
-      id: 'comp_01', type: 'insight', visual_type: 'text_card',
-      keyword: 'CONCORRÊNCIA', duration: 6,
-      card_title: `Gap: ${(comp.competitor || comp.competitor_type || '').slice(0, 30)}`,
-      card_body: (comp.weakness || comp.gap || comp.inema_gap || '').slice(0, 120),
-      narration: (comp.weakness || comp.gap || '').slice(0, 100),
+      id: 'advantage_01', type: 'insight', visual_type: 'text_card',
+      keyword: 'SUA VANTAGEM', duration: 6,
+      card_title: `O que ${compName} não oferece`,
+      card_body: gap,
+      narration: `${compName} ${gap}`,
     });
   }
 
-  // Scene 6: Marketing angles (list)
+  // ── Scene 6: The solution — what we offer (list of benefits) ───────
   if (research.marketing_angles?.length > 0) {
     scenes.push({
-      id: 'angles_01', type: 'product', visual_type: 'list',
-      keyword: 'ÂNGULOS DE ATAQUE', duration: 8,
-      list_title: 'Melhores Posicionamentos',
-      list_items: research.marketing_angles.slice(0, 5).map(a => a.angle || a.positioning || ''),
+      id: 'solution_01', type: 'solution', visual_type: 'list',
+      keyword: 'A SOLUÇÃO', duration: 8,
+      list_title: `O que ${brand} oferece para você`,
+      list_items: research.marketing_angles.slice(0, 4).map(a => a.angle || a.positioning || ''),
       list_numbered: true,
-      narration: 'Os ângulos de marketing mais eficazes para esta campanha.',
+      narration: research.marketing_angles.slice(0, 3).map(a => a.angle || '').join('. '),
     });
   }
 
-  // Scene 7: Content topics (list)
+  // ── Scene 7: Social proof — topics that are trending ───────────────
   if (research.content_topics?.length > 0) {
+    const topics = research.content_topics.slice(0, 4).map(t => typeof t === 'string' ? t : (t.topic || ''));
     scenes.push({
-      id: 'topics_01', type: 'product', visual_type: 'list',
-      keyword: 'TÓPICOS VIRAIS', duration: 8,
-      list_title: 'Temas com Maior Potencial',
-      list_items: research.content_topics.slice(0, 5).map(t => typeof t === 'string' ? t.slice(0, 60) : (t.topic || '').slice(0, 60)),
+      id: 'proof_01', type: 'proof', visual_type: 'list',
+      keyword: 'O QUE FUNCIONA', duration: 8,
+      list_title: 'Temas que mais engajam hoje',
+      list_items: topics,
       list_numbered: false,
-      narration: 'Os tópicos de conteúdo com maior potencial de engajamento.',
+      narration: `Os temas que mais funcionam: ${topics.slice(0, 2).join(' e ')}.`,
     });
   }
 
-  // Scene 8: CTA
+  // ── Scene 8: Urgency — market opportunity ──────────────────────────
+  const opp = research.market_opportunity || research.opportunities || {};
+  if (opp.summary || opp.urgency) {
+    scenes.push({
+      id: 'urgency_01', type: 'urgency', visual_type: 'text_card',
+      keyword: 'AGORA', duration: 5,
+      card_title: opp.urgency || 'O momento é agora',
+      card_body: opp.summary || '',
+      narration: `${opp.urgency || 'A janela está aberta'}. ${opp.summary || ''}`,
+    });
+  }
+
+  // ── Scene 9: CTA — clear brand + action ────────────────────────────
   scenes.push({
     id: 'cta_01', type: 'cta', visual_type: 'cta',
-    keyword: 'DADOS COMPLETOS', duration: 4,
+    keyword: 'COMECE AGORA', duration: 4,
     cta_brand: brandUrl,
-    cta_action: 'Veja o relatório completo',
-    narration: `Acesse o relatório completo em ${brand}.`,
+    cta_action: 'Acesse grátis',
+    narration: `Acesse ${brandUrl} e comece agora. É gratuito.`,
   });
 
-  // Scene 9: Silent hold
+  // ── Scene 10: Silent hold ──────────────────────────────────────────
   scenes.push({
     id: 'hold_01', type: 'cta', visual_type: 'cta',
-    keyword: brand.toUpperCase(), duration: 3,
+    keyword: brandUrl, duration: 3,
     cta_brand: brandUrl,
     cta_action: '',
     narration: '',
