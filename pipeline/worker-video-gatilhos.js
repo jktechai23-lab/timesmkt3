@@ -101,10 +101,12 @@ async function generateGatilhos(opts) {
   const imgsDir = path.resolve(projectRoot, outputDir, 'imgs');
   const assetsDir = path.resolve(projectRoot, projectDir, 'assets');
 
-  // Collect background images
+  // Collect background images — PRIORITY: campaign images (imgs/) that are about the subject
+  // Only fall back to assets/ if no campaign images exist
+  // If nothing clean is available, use null (solid bg from preset)
   const imgExts = ['.jpg', '.jpeg', '.png', '.webp'];
-  const skipDirs = ['logo', 'logos', 'brand', 'icons'];
   const skipPatterns = /banner|logo_|oficial_|badge_|stats_|apresenta|convite|_texto|texto_|_text|clean_|semcoroa|interno_|premium_|inema_.*v\d|classico|gold_/i;
+  const skipDirs = ['logo', 'logos', 'brand', 'icons'];
   const collectImages = (dir) => {
     if (!dir || !fs.existsSync(dir)) return [];
     const results = [];
@@ -122,7 +124,24 @@ async function generateGatilhos(opts) {
     walk(dir);
     return results;
   };
-  const bgImages = [...collectImages(imgsDir), ...collectImages(assetsDir)];
+
+  // Campaign images first (they match the topic), then carousel ads
+  // Generic assets from brand only as last resort — they may not match the topic
+  const campaignImages = collectImages(imgsDir);
+  const adsDir = path.resolve(projectRoot, outputDir, 'ads');
+  const adImages = collectImages(adsDir);
+  const assetImages = collectImages(assetsDir);
+  const bgImages = campaignImages.length > 0
+    ? campaignImages
+    : adImages.length > 0
+      ? adImages
+      : assetImages;
+
+  if (bgImages.length === 0) {
+    log(outputDir, 'video_pro', '⚠ No images found for gatilhos — using solid background');
+  } else {
+    log(outputDir, 'video_pro', `Background images: ${campaignImages.length} campaign, ${adImages.length} ads, ${assetImages.length} assets → using ${bgImages.length}`);
+  }
 
   // ── Extract supporting data for enriching hooks ──────────────────────
 

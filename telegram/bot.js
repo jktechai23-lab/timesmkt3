@@ -474,13 +474,14 @@ bot.command('helpvideos', async (ctx) => {
     `<code>/video-clip-pasta prj/coldbrew-coffee-co/assets/clips/</code>\n\n` +
 
     `<b>Templates Video Pro:</b>\n` +
-    `O Video Pro aceita templates que definem o mix de visuais:\n` +
+    `  ⭐ <code>report</code> — relatorio visual da pesquisa (auto)\n` +
+    `  ⭐ <code>gatilhos</code> — ads de todos os hooks (<30s cada)\n` +
     `  <code>auto</code> — agente decide (padrao)\n` +
-    `  <code>data_story</code> — graficos e dados (~60% chart)\n` +
-    `  <code>explainer</code> — passos e listas (~40% list/text)\n` +
-    `  <code>narrativo</code> — texto impacto (~50% text_card)\n` +
-    `  <code>brand_film</code> — cinematografico (~70% photo)\n\n` +
-    `Uso: inclua "template data_story" na descricao da campanha.\n` +
+    `  <code>data_story</code> — graficos e dados\n` +
+    `  <code>explainer</code> — passos e listas\n` +
+    `  <code>narrativo</code> — texto de impacto\n` +
+    `  <code>brand_film</code> — cinematografico\n\n` +
+    `Uso: <code>/rerun c63 3 pro gatilhos</code>\n` +
     `Detalhes: /helptemplates\n\n` +
 
     `<b>Como funciona o video:</b>\n` +
