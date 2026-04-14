@@ -138,7 +138,7 @@ async function generateGatilhos(opts) {
   if (bgImages.length === 0) {
     log(outputDir, 'video_pro', '⚠ No images found for gatilhos — using solid background');
   } else {
-    log(outputDir, 'video_pro', `Background images: ${campaignImages.length} campaign, ${adImages.length} ads, ${assetImages.length} assets → using ${bgImages.length}`);
+    log(outputDir, 'video_pro', `Background images: ${campaignImages.length} campaign, ${assetImages.length} assets → using ${bgImages.length}`);
   }
 
   // ── Extract supporting data for enriching hooks ──────────────────────
