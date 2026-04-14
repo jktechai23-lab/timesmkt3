@@ -46,12 +46,13 @@ async function generateGatilhos(opts) {
 
   log(outputDir, 'video_pro', 'Template GATILHOS: extracting hooks from research...');
 
-  // ── Extract hooks from multiple sources ─────────────────────────────
+  // ── Extract hooks from multiple sources (support EN + PT field names) ──
 
   const hooks = [];
 
-  // From ad_hooks (strings)
-  for (const hook of (research.ad_hooks || [])) {
+  // From ad_hooks / hooks_de_anuncio (strings)
+  const adHooks = research.ad_hooks || research.hooks_de_anuncio || [];
+  for (const hook of adHooks) {
     hooks.push({
       hook: typeof hook === 'string' ? hook : hook.text || hook.hook || '',
       source: 'ad_hook',
@@ -60,9 +61,9 @@ async function generateGatilhos(opts) {
     });
   }
 
-  // From video_concepts (objects with hook, format, cta)
-  for (const vc of (research.video_concepts || [])) {
-    const hookText = vc.hook || vc.title || '';
+  // From video_concepts / conceitos_de_video (objects with hook, format, cta)
+  for (const vc of (research.video_concepts || research.conceitos_de_video || [])) {
+    const hookText = vc.hook || vc.title || vc.titulo || '';
     if (hookText && !hooks.find(h => h.hook === hookText)) {
       hooks.push({
         hook: hookText,
@@ -74,9 +75,9 @@ async function generateGatilhos(opts) {
     }
   }
 
-  // From marketing_angles (objects with angle, emotion)
-  for (const ma of (research.marketing_angles || [])) {
-    const hookText = ma.angle || ma.positioning || '';
+  // From marketing_angles / angulos_de_marketing (objects with angle, emotion)
+  for (const ma of (research.marketing_angles || research.angulos_de_marketing || [])) {
+    const hookText = ma.angle || ma.angulo || ma.positioning || ma.posicionamento || '';
     if (hookText && !hooks.find(h => h.hook === hookText)) {
       hooks.push({
         hook: hookText,
@@ -143,8 +144,8 @@ async function generateGatilhos(opts) {
 
   // ── Extract supporting data for enriching hooks ──────────────────────
 
-  const pains = (research.consumer_motivations || []).filter(p => p.pain_point || p.motivation);
-  const trends = (research.industry_trends || []).filter(t => t.trend || t.detail);
+  const pains = (research.consumer_motivations || research.motivacoes_do_consumidor || []).filter(p => p.pain_point || p.motivation || p.dor || p.motivacao);
+  const trends = (research.industry_trends || research.tendencias_do_setor || []).filter(t => t.trend || t.detail || t.tendencia || t.detalhe);
 
   log(outputDir, 'video_pro', `Supporting data: ${pains.length} pain points, ${trends.length} trends`);
 
@@ -164,13 +165,13 @@ async function generateGatilhos(opts) {
 
     // Match hook to a related pain point (cycle through available)
     const pain = pains[hi % pains.length] || {};
-    const painText = pain.pain_point || pain.motivation || '';
-    const painTrigger = pain.emotional_trigger || pain.description || '';
+    const painText = pain.pain_point || pain.dor || pain.motivation || pain.motivacao || '';
+    const painTrigger = pain.emotional_trigger || pain.gatilho_emocional || pain.description || pain.descricao || '';
 
     // Match hook to a related data point (cycle through available)
     const trend = trends[hi % trends.length] || {};
-    const trendText = trend.trend || '';
-    const trendDetail = trend.detail || '';
+    const trendText = trend.trend || trend.tendencia || '';
+    const trendDetail = trend.detail || trend.descricao || '';
 
     // Extract a keyword from the hook (first 2-3 impactful words)
     const hookWords = h.hook.split(/\s+/).filter(w => w.length > 3).slice(0, 2).join(' ').toUpperCase() || 'ATENÇÃO';

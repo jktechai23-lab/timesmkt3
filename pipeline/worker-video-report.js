@@ -50,17 +50,28 @@ async function generateReport(opts) {
     log(outputDir, 'video_pro', 'Copied interactive_report.html to report/');
   }
 
+  // ── Normalize field names (research may use EN or PT keys) ──────────
+  const r = {
+    trends: research.industry_trends || research.tendencias_do_setor || [],
+    pains: research.consumer_motivations || research.motivacoes_do_consumidor || [],
+    competitors: research.competitor_messaging || research.mensagens_dos_concorrentes || [],
+    angles: research.marketing_angles || research.angulos_de_marketing || [],
+    topics: research.content_topics || research.topicos_de_conteudo || [],
+    hooks: research.ad_hooks || research.hooks_de_anuncio || [],
+    opportunity: research.market_opportunity || research.opportunities || research.metricas_de_mercado || {},
+  };
+
   // ── Build scene plan from research data ─────────────────────────────
 
   const scenes = [];
-  const brandRaw = research.brand || '';
+  const brandRaw = research.brand || research.empresa_origem || '';
   const brand = brandRaw ? brandRaw.toUpperCase() : 'INEMA';
   const brandUrl = `${brand}.CLUB`;
   const audience = research.target_audience || research.niche || '';
 
   // ── Scene 1: Hook — grab attention with the most impactful stat ────
-  const topTrend = (research.industry_trends || [])[0];
-  const hookText = topTrend?.trend || 'O mercado mudou. Você está preparado?';
+  const topTrend = (r.trends)[0];
+  const hookText = topTrend?.trend || topTrend?.tendencia || 'O mercado mudou. Você está preparado?';
   scenes.push({
     id: 'hook_01', type: 'hook', visual_type: 'text_card',
     keyword: 'VOCÊ SABIA?', duration: 3,
@@ -70,10 +81,10 @@ async function generateReport(opts) {
   });
 
   // ── Scene 2: The real problem — pain point that resonates ──────────
-  const topPain = (research.consumer_motivations || [])[0];
+  const topPain = (r.pains)[0];
   if (topPain) {
-    const painTitle = topPain.pain_point || topPain.motivation || '';
-    const painBody = topPain.description || topPain.emotional_trigger || '';
+    const painTitle = topPain.pain_point || topPain.dor || topPain.motivation || topPain.motivacao || '';
+    const painBody = topPain.description || topPain.descricao || topPain.emotional_trigger || topPain.gatilho_emocional || '';
     scenes.push({
       id: 'problem_01', type: 'problem', visual_type: 'text_card',
       keyword: 'O DESAFIO', duration: 6,
@@ -84,8 +95,8 @@ async function generateReport(opts) {
   }
 
   // ── Scene 3: Data that proves the problem — chart ──────────────────
-  if (research.industry_trends?.length >= 2) {
-    const trends = research.industry_trends.slice(0, 4);
+  if (r.trends?.length >= 2) {
+    const trends = r.trends.slice(0, 4);
     scenes.push({
       id: 'data_01', type: 'data', visual_type: 'chart',
       keyword: 'OS NÚMEROS', duration: 8,
@@ -100,10 +111,10 @@ async function generateReport(opts) {
   }
 
   // ── Scene 4: More pain — what's at stake ───────────────────────────
-  const secondPain = (research.consumer_motivations || [])[1];
+  const secondPain = (r.pains)[1];
   if (secondPain) {
-    const painTitle = secondPain.pain_point || secondPain.motivation || '';
-    const trigger = secondPain.emotional_trigger || secondPain.description || '';
+    const painTitle = secondPain.pain_point || secondPain.dor || secondPain.motivation || '';
+    const trigger = secondPain.emotional_trigger || secondPain.gatilho_emocional || secondPain.description || secondPain.descricao || '';
     scenes.push({
       id: 'stake_01', type: 'problem', visual_type: 'text_card',
       keyword: 'O QUE ESTÁ EM JOGO', duration: 6,
@@ -114,10 +125,10 @@ async function generateReport(opts) {
   }
 
   // ── Scene 5: What competitors are missing — your advantage ─────────
-  if (research.competitor_messaging?.length > 0) {
-    const comp = research.competitor_messaging[0];
-    const gap = comp.weakness || comp.gap || comp.inema_gap || '';
-    const compName = comp.competitor || comp.competitor_type || 'a concorrência';
+  if (r.competitors?.length > 0) {
+    const comp = r.competitors[0];
+    const gap = comp.weakness || comp.fraqueza || comp.gap || comp.lacuna || comp.inema_gap || '';
+    const compName = comp.competitor || comp.concorrente || comp.competitor_type || comp.tipo || 'a concorrência';
     scenes.push({
       id: 'advantage_01', type: 'insight', visual_type: 'text_card',
       keyword: 'SUA VANTAGEM', duration: 6,
@@ -128,20 +139,20 @@ async function generateReport(opts) {
   }
 
   // ── Scene 6: The solution — what we offer (list of benefits) ───────
-  if (research.marketing_angles?.length > 0) {
+  if (r.angles?.length > 0) {
     scenes.push({
       id: 'solution_01', type: 'solution', visual_type: 'list',
       keyword: 'A SOLUÇÃO', duration: 8,
       list_title: `O que ${brand} oferece para você`,
-      list_items: research.marketing_angles.slice(0, 4).map(a => a.angle || a.positioning || ''),
+      list_items: r.angles.slice(0, 4).map(a => a.angle || a.angulo || a.positioning || a.posicionamento || ''),
       list_numbered: true,
-      narration: research.marketing_angles.slice(0, 3).map(a => a.angle || '').join('. '),
+      narration: r.angles.slice(0, 3).map(a => a.angle || '').join('. '),
     });
   }
 
   // ── Scene 7: Social proof — topics that are trending ───────────────
-  if (research.content_topics?.length > 0) {
-    const topics = research.content_topics.slice(0, 4).map(t => typeof t === 'string' ? t : (t.topic || ''));
+  if (r.topics?.length > 0) {
+    const topics = r.topics.slice(0, 4).map(t => typeof t === 'string' ? t : (t.topic || t.topico || ''));
     scenes.push({
       id: 'proof_01', type: 'proof', visual_type: 'list',
       keyword: 'O QUE FUNCIONA', duration: 8,
