@@ -567,15 +567,16 @@ bot.command('helpaudio', async (ctx) => {
     `<code>/sfx-free whoosh transition</code>\n\n` +
 
     `<b>NARRACAO / TTS</b>\n\n` +
-    `<b>/tts-api [texto]</b> — Voz IA premium (~$0.30/1k chars)\n` +
-    `  --provider: elevenlabs (padrao), openai, minimax\n` +
+    `<b>Prioridade auto:</b> Chatterbox VC (local, gratis) → Fish → ElevenLabs\n\n` +
+    `<b>/tts-api [texto]</b> — Voz IA\n` +
+    `  --provider: auto (padrao), chatterbox, fish, elevenlabs, openai\n` +
     `  --voice:\n` +
-    `    ElevenLabs: Rachel (fem, quente), Bella (fem, suave),\n` +
-    `    Antoni (masc), Josh (masc, grave), Arnold (masc, forte)\n` +
-    `    OpenAI: nova (fem), shimmer (fem), echo (quente),\n` +
-    `    onyx (masc, grave), alloy (neutra), fable (expressiva)\n` +
+    `    Chatterbox: bella (clone local, gratis, PT-BR nativo)\n` +
+    `    Fish: bella (padrao), rachel, domi\n` +
+    `    ElevenLabs: Rachel, Bella, Antoni, Josh, Arnold\n` +
+    `    OpenAI: nova, shimmer, echo, onyx, alloy, fable\n` +
     `  --lang: pt-BR, en, es\n` +
-    `<code>/tts-api --voice Rachel Presente perfeito.</code>\n\n` +
+    `<code>/tts-api --voice bella Presente perfeito.</code>\n\n` +
 
     `<b>/tts-free [texto]</b> — TTS local (Piper, gratis)\n` +
     `<code>/tts-free Cada gole e um abraco.</code>`,

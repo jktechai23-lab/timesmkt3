@@ -75,7 +75,7 @@ function buildConfigTable(payload, title, env = process.env) {
     { setting: 'Quick', current: vQuick ? 'sim' : 'nao', def: 'sim', opts: 'sim / sem quick' },
     { setting: 'Pro', current: vPro ? 'sim' : 'nao', def: 'nao', opts: 'pro' },
     { setting: 'Narrador', current: payload.narrator || 'bella', def: DEFAULTS.narrator, opts: 'bella / rachel / domi / antoni / josh / arnold' },
-    { setting: 'TTS', current: payload.tts_provider || 'auto', def: DEFAULTS.tts_provider, opts: 'auto / elevenlabs / fish / openai' },
+    { setting: 'TTS', current: payload.tts_provider || 'auto', def: DEFAULTS.tts_provider, opts: 'auto / chatterbox / fish / elevenlabs / openai' },
     { setting: 'Duração', current: `${payload.video_duration || 60}s`, def: '60s', opts: '30 / 60' },
     { setting: 'Estilo', current: payload.style_preset || 'inema_hightech', def: DEFAULTS.style_preset, opts: 'inema_hightech / neon_futurista / premium_minimal / energetico / emocional / corporate / streetwear / nature / retro / bold_pop / dark_dramatic / playful / editorial' },
     { setting: 'Tipografia', current: payload.typography || 'auto', def: 'auto', opts: 'auto / serif / sans / condensed / mono' },
@@ -207,7 +207,7 @@ Rules:
 - approval_modes: each stage can be "humano" (user must approve), "agente" (AI reviewer decides), or "auto" (advance automatically). Default "auto" for all. Set to "humano" if user explicitly asks for approval before each stage. Set to "agente" if user says "aprovação por agente", "agente revisa".
 - notifications: false only if user explicitly says "sem notificações", "silencioso", "não notificar".
 - video_audio: "narration" if user wants voiceover/narração (default), "music" if user wants background music only, "both" if user wants narration + music, "none" for silent/no audio.
-- tts_provider: "auto" by default. Set to "elevenlabs", "fish", or "openai" only if the user explicitly asks for that TTS provider.
+- tts_provider: "auto" by default (uses chatterbox-vc local daemon, falls back to fish then elevenlabs). Set to "chatterbox", "fish", "elevenlabs", or "openai" only if the user explicitly asks for that TTS provider.
 - campaign_brief: comprehensive summary of everything the user described
 - Return ONLY the JSON object, no markdown, no explanation`;
 
