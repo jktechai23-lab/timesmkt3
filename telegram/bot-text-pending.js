@@ -598,6 +598,18 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
       }
       return true;
     }
+    if (/^m[uú]sica\s+(sim|nao|não|auto)$/i.test(lower)) {
+      const val = lower.match(/^m[uú]sica\s+(.+)$/i)[1].trim().replace('não', 'nao');
+      s.pendingCampaign.video_music = val;
+      await replyAndRefresh(`✅ Música: <b>${val}</b>`);
+      return true;
+    }
+    if (/^sfx\s+(sim|nao|não|auto)$/i.test(lower)) {
+      const val = lower.match(/^sfx\s+(.+)$/i)[1].trim().replace('não', 'nao');
+      s.pendingCampaign.video_sfx = val;
+      await replyAndRefresh(`✅ SFX: <b>${val}</b>`);
+      return true;
+    }
 
     if (lower.length > 5) {
       const originalBrief = s.pendingCampaign.campaign_brief || '';

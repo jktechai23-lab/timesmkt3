@@ -82,6 +82,8 @@ function buildConfigTable(payload, title, env = process.env) {
     { setting: 'Dir.Foto', current: payload.photo_quality || 'simples', def: DEFAULTS.photo_quality, opts: 'simples / premium' },
     { setting: 'Scene plan', current: payload.scene_quality || 'simples', def: DEFAULTS.scene_quality, opts: 'simples / premium' },
     { setting: 'Template', current: payload.video_template || 'auto', def: DEFAULTS.video_template, opts: 'auto / data_story / explainer / narrativo / brand_film / ⭐report / ⭐gatilhos' },
+    { setting: 'Música', current: payload.video_music || 'nao', def: 'nao', opts: 'nao / sim / auto' },
+    { setting: 'SFX', current: payload.video_sfx || 'nao', def: 'nao', opts: 'nao / sim / auto' },
     { setting: 'Fundo quick', current: bgLabel, def: 'escuro', opts: 'escuro / blur' },
     { setting: 'Idioma', current: payload.language || 'pt-BR', def: DEFAULTS.language, opts: 'pt-BR / en' },
     { setting: 'Aprovação', current: approvalLabel, def: DEFAULTS.approval, opts: 'humano / auto' },
