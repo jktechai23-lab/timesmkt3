@@ -19,10 +19,21 @@
  *       "duration": 4,
  *       "image": "path/to/image.jpg",         // brand image (absolute or relative to cwd)
  *       "text_overlay": "Headline text here",
- *       "text_style": "bold"                  // optional: bold, light
+ *       "text_style": "bold",                 // optional: bold, light
+ *       "sfx": [                              // optional: SFX por cena (opt-in)
+ *         { "file": "audio/sfx_00.mp3", "offset_s": 0, "volume": 0.5 },
+ *         { "file": "audio/sfx_00b.mp3", "offset_s": 1.5, "volume": 0.4 }
+ *       ]
  *     }
  *   ]
  * }
+ *
+ * SFX opt-in: cada cena pode declarar um array `sfx` com um ou mais efeitos.
+ * O `offset_s` é relativo ao início da cena (o render soma as durações anteriores
+ * para calcular o timestamp absoluto no vídeo final). Se `scene.sfx` estiver
+ * ausente ou vazio, o render não adiciona SFX algum — comportamento identico ao
+ * default antigo. Use pipeline/audio-enrich.js:addSceneSfx() para popular esse
+ * campo, ou scripts/add-sfx.js como CLI.
  */
 
 const { execFileSync, execSync } = require('child_process');
@@ -484,7 +495,20 @@ async function renderVideo(scenePlanPath, outputPath) {
       '-y', silentVideo,
     ], { stdio: 'pipe' });
 
-    // Step 3: Add audio — narration and/or background music
+    // Step 3: Add audio — narration, background music, SFX per scene
+    //
+    // Construcao dinamica do filter_complex do ffmpeg:
+    //   input 0: video silencioso
+    //   input 1: narration (se existir)
+    //   input 2: music (se existir)
+    //   input 3..N: SFX agregados de todas as cenas, cada um com adelay
+    //               correspondente ao timestamp absoluto no video final
+    //
+    // Branches especiais:
+    //   - zero audio: adiciona anullsrc para manter o container valido
+    //   - so music (sem narration e sem sfx): usa stream_loop pra cobrir o video
+    //   - resto: amix de N inputs com volumes individuais
+
     const hasNarration = audioPath && fs.existsSync(audioPath);
     const hasMusic     = musicPath && fs.existsSync(musicPath);
     const hasNarrationScript = Boolean(plan.narration_script && plan.narration_script.trim());
@@ -496,36 +520,50 @@ async function renderVideo(scenePlanPath, outputPath) {
       throw new Error('Narration audio required by the scene plan but the audio file is missing.');
     }
 
-    if (hasNarration && hasMusic) {
-      // Mix narration (full volume) + background music (lower volume) via amix
+    // Agregar SFX de todas as cenas (opt-in: se scene.sfx estiver ausente, nada eh adicionado)
+    // Cada entrada vira { path: absoluto, absoluteStart_s: float, volume: float }
+    const sfxEntries = [];
+    let sceneStart = 0;
+    for (let i = 0; i < scenes.length; i += 1) {
+      const scene = scenes[i];
+      const dur = sceneDurations[i];
+      const sfxList = Array.isArray(scene?.sfx) ? scene.sfx : [];
+      for (const entry of sfxList) {
+        if (!entry || !entry.file) continue;
+        const sfxAbs = path.resolve(PROJECT_ROOT, entry.file);
+        if (!fs.existsSync(sfxAbs)) {
+          console.log(`Warning: SFX nao encontrado: ${entry.file} (cena ${i}). Ignorando.`);
+          continue;
+        }
+        const offset = Number(entry.offset_s) || 0;
+        const volume = Number.isFinite(entry.volume) ? entry.volume : 0.5;
+        const absoluteStart = sceneStart + offset;
+        sfxEntries.push({
+          path: sfxAbs,
+          absoluteStart_s: absoluteStart,
+          volume,
+          sceneIndex: i,
+        });
+      }
+      sceneStart += dur;
+    }
+    const hasSfx = sfxEntries.length > 0;
+
+    // Branch trivial: zero audio
+    if (!hasNarration && !hasMusic && !hasSfx) {
       execFileSync('ffmpeg', [
         '-i', silentVideo,
-        '-i', audioPath,
-        '-i', musicPath,
-        '-filter_complex',
-          `[1:a]volume=1.0[narr];[2:a]volume=${musicVolume}[mus];[narr][mus]amix=inputs=2:duration=shortest[aout]`,
-        '-map', '0:v',
-        '-map', '[aout]',
+        '-f', 'lavfi',
+        '-i', 'anullsrc=r=44100:cl=stereo',
         '-c:v', 'copy',
         '-c:a', 'aac',
         '-shortest',
         '-y', absOutput,
       ], { stdio: 'pipe' });
-      console.log(`Audio: narration + music (vol ${musicVolume})`);
-    } else if (hasNarration) {
-      execFileSync('ffmpeg', [
-        '-i', silentVideo,
-        '-i', audioPath,
-        '-map', '0:v',
-        '-map', '1:a',
-        '-c:v', 'copy',
-        '-c:a', 'aac',
-        '-shortest',
-        '-y', absOutput,
-      ], { stdio: 'pipe' });
-      console.log('Audio: narration only');
-    } else if (hasMusic) {
-      // Music only — loop/trim to video length
+      console.log('Audio: silent');
+    }
+    // Branch especial: somente music (sem narration e sem sfx) — loopa pra cobrir o video
+    else if (!hasNarration && hasMusic && !hasSfx) {
       execFileSync('ffmpeg', [
         '-i', silentVideo,
         '-stream_loop', '-1',
@@ -539,18 +577,67 @@ async function renderVideo(scenePlanPath, outputPath) {
         '-y', absOutput,
       ], { stdio: 'pipe' });
       console.log(`Audio: music only (vol ${musicVolume})`);
-    } else {
-      // Add silent audio track so the file is valid
+    }
+    // Caso geral: qualquer combinacao de narration/music/sfx — usa amix dinamico
+    else {
+      const inputs = ['-i', silentVideo];
+      const filterParts = [];
+      const mixLabels = [];
+      let inputIdx = 1; // [0:v] eh o video
+
+      if (hasNarration) {
+        inputs.push('-i', audioPath);
+        filterParts.push(`[${inputIdx}:a]volume=1.0[narr]`);
+        mixLabels.push('[narr]');
+        inputIdx += 1;
+      }
+
+      if (hasMusic) {
+        // Loopa pra cobrir o video. Se tambem tem narracao, o `duration=first` do
+        // amix corta na duracao do primeiro (narracao), o que ja desejavel.
+        inputs.push('-stream_loop', '-1', '-i', musicPath);
+        filterParts.push(`[${inputIdx}:a]volume=${musicVolume}[mus]`);
+        mixLabels.push('[mus]');
+        inputIdx += 1;
+      }
+
+      sfxEntries.forEach((sfx, idx) => {
+        inputs.push('-i', sfx.path);
+        // adelay espera milissegundos por canal. Usa padding=1 pra nao dropar o tail.
+        const delayMs = Math.max(0, Math.round(sfx.absoluteStart_s * 1000));
+        const label = `[sfx${idx}]`;
+        filterParts.push(
+          `[${inputIdx}:a]adelay=${delayMs}|${delayMs},volume=${sfx.volume}${label}`,
+        );
+        mixLabels.push(label);
+        inputIdx += 1;
+      });
+
+      // Escolha da duracao: 'first' se tem narracao (alinha ao fim da voz),
+      // senao 'longest' pra garantir que cabe tudo.
+      const duration = hasNarration ? 'first' : 'longest';
+      filterParts.push(
+        `${mixLabels.join('')}amix=inputs=${mixLabels.length}:duration=${duration}:normalize=0[aout]`,
+      );
+
+      const filterComplex = filterParts.join(';');
+
       execFileSync('ffmpeg', [
-        '-i', silentVideo,
-        '-f', 'lavfi',
-        '-i', 'anullsrc=r=44100:cl=stereo',
+        ...inputs,
+        '-filter_complex', filterComplex,
+        '-map', '0:v',
+        '-map', '[aout]',
         '-c:v', 'copy',
         '-c:a', 'aac',
         '-shortest',
         '-y', absOutput,
       ], { stdio: 'pipe' });
-      console.log('Audio: silent');
+
+      const narrStr = hasNarration ? 'narration' : '';
+      const musStr  = hasMusic     ? `music(vol ${musicVolume})` : '';
+      const sfxStr  = hasSfx       ? `${sfxEntries.length} sfx` : '';
+      const summary = [narrStr, musStr, sfxStr].filter(Boolean).join(' + ');
+      console.log(`Audio: ${summary}`);
     }
 
     console.log(`✅ Video rendered: ${absOutput}`);

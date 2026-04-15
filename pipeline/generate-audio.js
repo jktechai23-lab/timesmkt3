@@ -36,7 +36,10 @@ const MINIMAX_VOICE_MAP = {
   arnold: 'male-qn-qingse',
 };
 
-const DEFAULT_PROVIDER_ORDER = ['elevenlabs', 'fish', 'minimax'];
+// chatterbox-vc primeiro (daemon local grátis, ~3s/chamada após cold start).
+// Fallback automático para fish, elevenlabs, minimax se o daemon estiver fora.
+// Ver media/providers.js:TTS_FALLBACK e doc/tts-daemon-notas.md
+const DEFAULT_PROVIDER_ORDER = ['chatterbox-vc', 'fish', 'elevenlabs', 'minimax'];
 
 function normalizeProvider(raw) {
   const value = String(raw || '').trim().toLowerCase();

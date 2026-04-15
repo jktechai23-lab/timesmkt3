@@ -20,7 +20,17 @@ async function fetchFreesound(query, outputPath, options = {}) {
   if (!apiKey) throw new Error('FREESOUND_API_KEY not configured');
 
   const duration = options.maxDuration || 10; // max seconds
-  const url = `/apiv2/search/text/?query=${encodeURIComponent(query)}&filter=duration:[0 TO ${duration}]&fields=id,name,previews,duration,license&page_size=1&token=${apiKey}`;
+
+  // URLSearchParams escapa tudo corretamente, incluindo o filter com [0 TO N]
+  const params = new URLSearchParams({
+    query,
+    filter: `duration:[0 TO ${duration}]`,
+    fields: 'id,name,previews,duration,license,username',
+    page_size: '1',
+    sort: 'rating_desc',
+    token: apiKey,
+  });
+  const url = `/apiv2/search/text/?${params.toString()}`;
 
   const response = await httpGet('freesound.org', url);
   const data = JSON.parse(response);
@@ -39,6 +49,7 @@ async function fetchFreesound(query, outputPath, options = {}) {
     name: sound.name,
     duration: sound.duration,
     license: sound.license,
+    author: sound.username,
     path: outputPath,
   };
 }

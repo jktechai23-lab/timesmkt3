@@ -168,9 +168,28 @@ const PROVIDERS = {
     envKeys: ['FISH_AUDIO_API_KEY'],
     description: 'Vozes brasileiras narrativas (Bella, Ana, Bella). Ideal para storytelling profundo.',
   },
+  'chatterbox-vc': {
+    name: 'Chatterbox VC (daemon local)',
+    type: 'tts',
+    subtype: 'local',
+    cost: 'free',
+    priceNote: 'Gratuito, GPU local, daemon persistente (~3s/chamada após cold start)',
+    quality: 'high',
+    formats: ['mp3'],
+    languages: ['pt-BR', 'en', 'es', 'fr', 'de', 'it'],
+    envKeys: [],
+    description: 'Edge TTS Francisca (prosódia PT-BR nativa) + Chatterbox VC (clone de timbre Rachel/Bella). Daemon FastAPI em 127.0.0.1:7860.',
+  },
 };
 
-const PREFERRED_TTS_ORDER = ['elevenlabs', 'fish', 'minimax', 'openai-tts', 'local-piper'];
+// chatterbox-vc primeiro (grátis + qualidade), fish como fallback pago, elevenlabs como último recurso
+const PREFERRED_TTS_ORDER = ['chatterbox-vc', 'fish', 'elevenlabs', 'minimax', 'openai-tts', 'local-piper'];
+
+// Fallback automático: se X falhar, cai para Y
+const TTS_FALLBACK = {
+  'chatterbox-vc': 'fish',
+  'fish': 'elevenlabs',
+};
 
 // ── Helper Functions ────────────────────────────────────────────────────────
 
@@ -228,6 +247,7 @@ function printStatus() {
 
 module.exports = {
   PROVIDERS,
+  TTS_FALLBACK,
   getEnvVar: getEnv,
   isProviderAvailable,
   getAvailableProviders,

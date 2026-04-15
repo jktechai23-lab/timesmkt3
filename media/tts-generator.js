@@ -11,8 +11,9 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const http = require('http');
 const { execFileSync } = require('child_process');
-const { getEnvVar, getBestProvider } = require('./providers');
+const { getEnvVar, getBestProvider, TTS_FALLBACK } = require('./providers');
 
 // ── ElevenLabs ──────────────────────────────────────────────────────────────
 
@@ -141,6 +142,43 @@ async function generateFishAudio(text, outputPath, options = {}) {
 
 // ── OpenAI TTS ──────────────────────────────────────────────────────────────
 
+// ── Chatterbox VC (daemon local — Edge TTS + ChatterboxVC) ──────────────────
+
+const CHATTERBOX_DAEMON_URL = process.env.TTS_DAEMON_URL || 'http://127.0.0.1:7860';
+
+async function generateChatterboxVC(text, outputPath, options = {}) {
+  const voice = options.voice || options.voiceId || 'rachel';
+  const lang = options.lang || 'pt';
+  const bitrate = options.bitrate || '128k';
+  const maxAttempts = options.maxAttempts || 3;
+  const retryDelayMs = options.retryDelayMs || 2000;
+
+  const body = JSON.stringify({ text, voice, lang, bitrate });
+
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const audioBuffer = await httpPostBinaryLocal(
+        CHATTERBOX_DAEMON_URL + '/tts/vc',
+        body,
+        { 'Content-Type': 'application/json' },
+      );
+
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, audioBuffer);
+      console.log(`  ✅ Chatterbox VC saved: ${outputPath} (voice ${voice}, ${text.length} chars)`);
+      return { provider: 'chatterbox-vc', voice, chars: text.length, path: outputPath };
+    } catch (e) {
+      lastErr = e;
+      const retriable = /ECONNREFUSED|ETIMEDOUT|ECONNRESET|HTTP 503/.test(e.message);
+      if (!retriable || attempt === maxAttempts) break;
+      console.warn(`  ⚠️  Chatterbox daemon attempt ${attempt}/${maxAttempts} failed (${e.message.slice(0, 80)}). Retrying in ${retryDelayMs}ms...`);
+      await new Promise(r => setTimeout(r, retryDelayMs));
+    }
+  }
+  throw new Error(`Chatterbox VC daemon unavailable: ${lastErr?.message || 'unknown'}`);
+}
+
 // ── Piper (Local) ───────────────────────────────────────────────────────────
 
 async function generatePiper(text, outputPath, options = {}) {
@@ -174,17 +212,43 @@ async function generatePiper(text, outputPath, options = {}) {
 
 // ── Unified Interface ───────────────────────────────────────────────────────
 
-async function generateSpeech(text, outputPath, options = {}) {
+async function generateSpeechSingle(text, outputPath, options = {}) {
   const provider = options.provider || getBestProvider('tts')?.id || 'openai-tts';
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
   switch (provider) {
-    case 'elevenlabs': return generateElevenLabs(text, outputPath, options);
-    case 'minimax': return generateMiniMax(text, outputPath, options);
-    case 'fish': return generateFishAudio(text, outputPath, options);
-    case 'local-piper': return generatePiper(text, outputPath, options);
+    case 'elevenlabs':    return generateElevenLabs(text, outputPath, options);
+    case 'minimax':       return generateMiniMax(text, outputPath, options);
+    case 'fish':          return generateFishAudio(text, outputPath, options);
+    case 'chatterbox-vc': return generateChatterboxVC(text, outputPath, options);
+    case 'local-piper':   return generatePiper(text, outputPath, options);
     default: throw new Error(`Unknown TTS provider: ${provider}`);
+  }
+}
+
+/**
+ * Gera fala com fallback automático. Se o provider primário falhar (ex.: daemon
+ * Chatterbox não responde), tenta o fallback mapeado em TTS_FALLBACK.
+ * Desabilita com options.noFallback = true.
+ */
+async function generateSpeech(text, outputPath, options = {}) {
+  const primary = options.provider || getBestProvider('tts')?.id || 'openai-tts';
+  const fallback = options.fallback
+    || (options.noFallback ? null : TTS_FALLBACK[primary]);
+
+  try {
+    return await generateSpeechSingle(text, outputPath, { ...options, provider: primary });
+  } catch (err) {
+    if (!fallback || fallback === primary) throw err;
+    console.warn(`  ⚠️  TTS provider '${primary}' failed: ${err.message.slice(0, 140)}`);
+    console.warn(`  ↪  Fallback → '${fallback}'`);
+    const result = await generateSpeechSingle(text, outputPath, {
+      ...options,
+      provider: fallback,
+      noFallback: true, // evita cascata infinita
+    });
+    return { ...result, fallbackFrom: primary };
   }
 }
 
@@ -202,6 +266,10 @@ const VOICES = {
     'Bella': 'f18e96e1ed024df98860f6ff60bd6695',
     'Warm Gentle Midage': '5b0bdf4a1e9c46e4b8469730ade927b9',
     'Ana Brazilian': '2f41253e0f234410ab6d00a6f3617a21',
+  },
+  'chatterbox-vc': {
+    'Rachel': 'rachel',  // → media/voice-refs/rachel.wav (default)
+    'Bella':  'bella',   // → media/voice-refs/bella.wav
   },
 };
 
@@ -221,6 +289,33 @@ function httpPost(host, urlPath, body, headers = {}) {
       });
     });
     req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+function httpPostBinaryLocal(url, body, headers = {}) {
+  return new Promise((resolve, reject) => {
+    let u;
+    try { u = new URL(url); } catch (e) { return reject(e); }
+    const mod = u.protocol === 'https:' ? https : http;
+    const req = mod.request({
+      host: u.hostname,
+      port: u.port,
+      path: u.pathname + u.search,
+      method: 'POST',
+      headers: { ...headers, 'Content-Length': Buffer.byteLength(body) },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}: ${buffer.toString('utf-8').slice(0, 300)}`));
+        resolve(buffer);
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(600000, () => req.destroy(new Error('timeout')));
     req.write(body);
     req.end();
   });
@@ -248,9 +343,11 @@ function httpPostBinary(host, urlPath, body, headers = {}) {
 
 module.exports = {
   generateSpeech,
+  generateSpeechSingle,
   generateElevenLabs,
   generateMiniMax,
   generatePiper,
   generateFishAudio,
+  generateChatterboxVC,
   VOICES,
 };
