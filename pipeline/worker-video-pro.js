@@ -89,7 +89,7 @@ function createWorkerVideoProHandler({
           projectRoot, outputDir: output_dir, projectDir: project_dir,
           taskName: task_name, stylePreset: job.data.style_preset || 'inema_hightech',
           videoAudio: job.data.video_audio || 'narration',
-          narrator: job.data.narrator || 'bella',
+          narrator: job.data.narrator || 'rachel',
           ttsProvider: job.data.tts_provider || 'auto',
           log,
         });
@@ -121,7 +121,7 @@ function createWorkerVideoProHandler({
           projectRoot, outputDir: output_dir, projectDir: project_dir,
           taskName: task_name, stylePreset: job.data.style_preset || 'inema_hightech',
           videoAudio: job.data.video_audio || 'narration',
-          narrator: job.data.narrator || 'bella',
+          narrator: job.data.narrator || 'rachel',
           ttsProvider: job.data.tts_provider || 'auto',
           ctaBrand,
           ctaAction: 'Acesse grátis',
@@ -469,9 +469,9 @@ ${langInstruction}${briefInstruction}
 
 For each of the ${video_count} video(s), write a narration script.
 Target duration: ${job.data.video_duration || 60} seconds (${Math.round((job.data.video_duration || 60) * 2.5)} words for pt-BR at ~2.5 words/sec).
-Then generate the audio using: node pipeline/generate-audio.js <output.mp3> "<script>" ${job.data.narrator || 'bella'}${selectedTtsProvider ? ` --provider ${selectedTtsProvider}` : ''}
+Then generate the audio using: node pipeline/generate-audio.js <output.mp3> "<script>" ${job.data.narrator || 'rachel'}${selectedTtsProvider ? ` --provider ${selectedTtsProvider}` : ''}
 Save narration to: ${output_dir}/audio/${task_name}_video_0N_narration.mp3
-Voice: ${job.data.narrator || 'bella'} — use this EXACT voice (must match quick video for consistency)
+Voice: ${job.data.narrator || 'rachel'} — use this EXACT voice (must match quick video for consistency)
 Preferred TTS provider: ${ttsProviderLabel}
 
 IMPORTANT: ONLY generate narration audio files. Do NOT create scene plans or any other files.
@@ -1040,7 +1040,7 @@ JSON structure:
 {
   "titulo": "...", "video_length": ${videoDur}, "format": "9:16",
   "width": 1080, "height": 1920,
-  "voice": "${job.data.narrator || 'bella'}",
+  "voice": "${job.data.narrator || 'rachel'}",
   "narration_file": "${narrationTimings[0]?.file || 'null'}", "music": null, "music_volume": 0.15,
   "scenes": [
     { "id": "hook_01", "type": "hook", "visual_type": "photo",

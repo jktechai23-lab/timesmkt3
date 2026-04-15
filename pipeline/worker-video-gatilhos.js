@@ -30,7 +30,7 @@ async function generateGatilhos(opts) {
     stylePreset = 'inema_hightech',
     ctaBrand = 'INEMA.CLUB', ctaAction = 'Acesse grátis',
     videoAudio = 'narration', // 'narration' | 'none' | 'music'
-    narrator = 'bella',
+    narrator = 'rachel',
     ttsProvider = 'auto',
     log,
   } = opts;

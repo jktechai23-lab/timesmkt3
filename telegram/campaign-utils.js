@@ -52,7 +52,7 @@ function buildConfigTable(payload, title, env = process.env) {
 
   const DEFAULTS = {
     image_source: 'brand', image_model: 'z-image', image_provider: 'KIE',
-    narrator: 'bella', video_duration: 60, style_preset: 'inema_hightech',
+    narrator: 'rachel', video_duration: 60, style_preset: 'inema_hightech',
     photo_quality: 'simples', scene_quality: 'simples',
     video_quick: true, video_pro: false, video_template: 'auto', language: 'pt-BR',
     image_bg_mode: 'dark', notifications: true, approval: 'auto',
@@ -74,7 +74,7 @@ function buildConfigTable(payload, title, env = process.env) {
     { setting: 'Fonte imgs', current: sourceLabel, def: DEFAULTS.image_source, opts: 'brand / api / free / screenshot / folder xxx / solid [cor]' },
     { setting: 'Quick', current: vQuick ? 'sim' : 'nao', def: 'sim', opts: 'sim / sem quick' },
     { setting: 'Pro', current: vPro ? 'sim' : 'nao', def: 'nao', opts: 'pro' },
-    { setting: 'Narrador', current: payload.narrator || 'bella', def: DEFAULTS.narrator, opts: 'bella / rachel / domi / antoni / josh / arnold' },
+    { setting: 'Narrador', current: payload.narrator || 'rachel', def: DEFAULTS.narrator, opts: 'rachel / bella / domi / antoni / josh / arnold' },
     { setting: 'TTS', current: payload.tts_provider || 'auto', def: DEFAULTS.tts_provider, opts: 'auto / chatterbox / fish / elevenlabs / openai' },
     { setting: 'Duração', current: `${payload.video_duration || 60}s`, def: '60s', opts: '30 / 60' },
     { setting: 'Estilo', current: payload.style_preset || 'inema_hightech', def: DEFAULTS.style_preset, opts: 'inema_hightech / neon_futurista / premium_minimal / energetico / emocional / corporate / streetwear / nature / retro / bold_pop / dark_dramatic / playful / editorial' },

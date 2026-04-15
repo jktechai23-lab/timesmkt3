@@ -27,7 +27,7 @@ async function generateReport(opts) {
     projectRoot, outputDir, projectDir, taskName,
     stylePreset = 'inema_hightech',
     videoAudio = 'narration', // 'narration' | 'none' | 'music'
-    narrator = 'bella',
+    narrator = 'rachel',
     ttsProvider = 'auto',
     log,
   } = opts;
