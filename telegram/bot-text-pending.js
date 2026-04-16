@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { normalizeProjectFolder } = require('./bot-rerun');
 const { scanBatch } = require('../scripts/campaign-import-worker');
+const { getDefaultImageModel } = require('../config/env');
 
 function createPendingTextHandlers(deps) {
   const {
@@ -544,13 +545,13 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
       return true;
     }
     if (/^(provider|provedor)\s+(.+)$/i.test(lower)) {
-      const prov = lower.match(/^(?:provider|provedor)\s+(.+)$/i)[1].trim();
+      const prov = lower.match(/^(?:provider|provedor)\s+(.+)$/i)[1].trim().toLowerCase();
       env.IMAGE_PROVIDER = prov;
       s.pendingCampaign.image_provider = prov;
       if (!s.pendingCampaign._modelExplicit) {
-        s.pendingCampaign.image_model = prov === 'pollinations' ? 'flux' : 'z-image';
+        s.pendingCampaign.image_model = getDefaultImageModel(prov);
       }
-      await replyAndRefresh(`✅ Provider de imagens: <b>${prov}</b>`);
+      await replyAndRefresh(`✅ Provider de imagens: <b>${prov}</b> (modelo default: ${s.pendingCampaign.image_model})`);
       return true;
     }
     if (/^modelo?\s+(.+)$/i.test(lower)) {

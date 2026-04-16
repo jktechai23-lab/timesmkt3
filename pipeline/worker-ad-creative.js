@@ -206,7 +206,8 @@ Each story has one bold key message with large text.`;
     const providerName = job.data.image_provider || imageProviderName;
     let apiGeneratedAssets = [];
     if (image_source === 'api') {
-      const model = job.data.image_model || getEnv('KIE_DEFAULT_MODEL', defaultModel);
+      const providerModule = getImageProvider(providerName);
+      const model = job.data.image_model || providerModule.DEFAULT_MODEL || getEnv('KIE_DEFAULT_MODEL', defaultModel);
       const useBrand = job.data.use_brand_overlay !== false;
 
       let scenePurposes = [];

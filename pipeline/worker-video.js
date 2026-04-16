@@ -696,7 +696,7 @@ After saving all scene plans, print exactly: [VIDEO_APPROVAL_NEEDED] ${output_di
       const jobProvider = job.data.image_provider || imageProviderName;
       const imageProvider = getImageProvider(jobProvider);
       const genImage = imageProvider.generateImage;
-      const model = job.data.image_model || getEnv('KIE_DEFAULT_MODEL', defaultModel);
+      const model = job.data.image_model || imageProvider.DEFAULT_MODEL || getEnv('KIE_DEFAULT_MODEL', defaultModel);
       const useBrand = job.data.use_brand_overlay !== false;
       const brand = useBrand ? readBrandContext(project_dir) : null;
       if (brand) log(output_dir, 'video_ad_specialist', `Brand context: ${brand.brandName} | provider: ${jobProvider}`);

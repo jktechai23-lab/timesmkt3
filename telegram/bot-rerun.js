@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { getEnv } = require('../config/env');
+const { getEnv, getDefaultImageModel } = require('../config/env');
 
 function normalizeProjectFolder(projectDir, folderPath) {
   const raw = String(folderPath || '').trim().replace(/\\/g, '/');
@@ -149,7 +149,7 @@ function registerRerunCommands(bot, deps) {
       video_count: 1,
       image_source: imageSource,
       image_folder: null,
-      image_model: getEnv('KIE_DEFAULT_MODEL', 'z-image'),
+      image_model: getDefaultImageModel(),
       screenshot_urls: screenshotUrls,
       use_brand_overlay: true,
       campaign_brief: briefData.campaign_angle || '',
@@ -354,8 +354,15 @@ function registerRerunCommands(bot, deps) {
       try { briefData = JSON.parse(fs.readFileSync(briefPath, 'utf-8')); } catch {}
     }
 
-    if (videoPro) videoQuick = true;
-    const videoMode = videoPro ? 'both' : 'quick';
+    // Special templates run exclusively via the Pro handler
+    const hasSpecialTemplate = videoTemplates.some((t) => t === 'gatilhos' || t === 'report');
+    if (hasSpecialTemplate) {
+      videoPro = true;
+      videoQuick = false;
+    }
+
+    if (videoPro && !hasSpecialTemplate) videoQuick = true;
+    const videoMode = videoPro && videoQuick ? 'both' : videoPro ? 'pro' : 'quick';
 
     // If no templates specified, default to 'auto'
     if (videoTemplates.length === 0) videoTemplates.push(origPayload.video_template || 'auto');
@@ -374,7 +381,7 @@ function registerRerunCommands(bot, deps) {
       image_source: imageSource,
       image_folder: payloadImageFolder,
       image_background_color: payloadImageBackgroundColor,
-      image_model: getEnv('KIE_DEFAULT_MODEL', 'z-image'),
+      image_model: getDefaultImageModel(),
       screenshot_urls: screenshotUrls,
       use_brand_overlay: true,
       campaign_brief: briefData.campaign_angle || '',

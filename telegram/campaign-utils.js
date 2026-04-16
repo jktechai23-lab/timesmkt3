@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { getDefaultImageModel } = require('../config/env');
 
 function resolveStageAlias(alias) {
   const map = {
@@ -29,7 +30,7 @@ function buildPayload(taskName, opts, projectDir, today, env = process.env) {
     image_source: opts['img-source'] || 'brand',
     image_background_color: opts['img-bg-color'] || null,
     screenshot_urls: opts['screenshot-urls'] ? opts['screenshot-urls'].split(',').map(u => u.trim()) : [],
-    image_model: opts['img-model'] || env.KIE_DEFAULT_MODEL || (env.IMAGE_PROVIDER === 'pollinations' ? 'flux' : 'z-image'),
+    image_model: opts['img-model'] || getDefaultImageModel(env.IMAGE_PROVIDER),
     use_brand_overlay: opts['brand-overlay'] !== 'false',
     campaign_brief: opts.brief || '',
     video_mode: opts['video-pro'] ? 'pro' : 'quick',
@@ -40,18 +41,20 @@ function buildPayload(taskName, opts, projectDir, today, env = process.env) {
 
 function buildConfigTable(payload, title, env = process.env) {
   const imageSource = payload.image_source || 'brand';
-  const providerLabel = (payload.image_provider || env.IMAGE_PROVIDER || 'kie').toUpperCase();
+  const providerLabel = (payload.image_provider || env.IMAGE_PROVIDER || 'inemaimg').toUpperCase();
   const modelLabels = {
     'z-image': 'Z-Image', 'z-image-turbo': 'Z-Image Turbo',
     'flux-kontext-pro': 'Flux Pro', 'flux-kontext-max': 'Flux Max', 'gpt-image-1': 'GPT-Image-1',
     seedream: 'SeedReam', 'flux-2': 'FLUX 2', 'grok-imagine': 'Grok Imagine', 'nano-banana-2': 'Nano Banana 2',
     flux: 'FLUX Schnell', zimage: 'Z-Image Turbo', kontext: 'FLUX Kontext',
     gptimage: 'GPT Image Mini', 'nanobanana-pro': 'Gemini 3 Pro',
+    'flux2-klein': 'FLUX.2 Klein', 'flux2-dev': 'FLUX.2 Dev',
+    'qwen-edit-2511': 'Qwen Edit 2511', ernie: 'ERNIE-Image',
   };
-  const modelLabel = modelLabels[payload.image_model] || payload.image_model || 'z-image';
+  const modelLabel = modelLabels[payload.image_model] || payload.image_model || 'flux2-klein';
 
   const DEFAULTS = {
-    image_source: 'brand', image_model: 'z-image', image_provider: 'KIE',
+    image_source: 'brand', image_model: 'flux2-klein', image_provider: 'INEMAIMG',
     narrator: 'rachel', video_duration: 60, style_preset: 'inema_hightech',
     photo_quality: 'simples', scene_quality: 'simples',
     video_quick: true, video_pro: false, video_template: 'auto', language: 'pt-BR',
@@ -92,8 +95,8 @@ function buildConfigTable(payload, title, env = process.env) {
 
   if (imageSource === 'api') {
     rows.splice(1, 0,
-      { setting: 'Provider', current: providerLabel, def: DEFAULTS.image_provider, opts: 'kie / pollinations' },
-      { setting: 'Modelo', current: modelLabel, def: DEFAULTS.image_model, opts: 'z-image / flux / flux-2 / seedream' },
+      { setting: 'Provider', current: providerLabel, def: DEFAULTS.image_provider, opts: 'inemaimg / kie / pollinations / piramyd' },
+      { setting: 'Modelo', current: modelLabel, def: DEFAULTS.image_model, opts: 'flux2-klein / qwen-edit-2511 / ernie / flux2-dev / z-image / flux' },
     );
   }
 
@@ -181,7 +184,7 @@ Return a JSON object with these fields:
   "video_template": "auto",
   "image_source": "brand",
   "image_background_color": null,
-  "image_model": "${env.KIE_DEFAULT_MODEL || 'z-image'}",
+  "image_model": "${getDefaultImageModel(env.IMAGE_PROVIDER)}",
   "approval_modes": {
     "stage1": "auto",
     "stage2": "auto",
@@ -205,7 +208,7 @@ Rules:
 - video_template: "auto" (default, agent decides freely), "data_story" (data/statistics focused), "explainer" (step-by-step, process), "narrativo" (text-card narrative), "brand_film" (cinematic, photo-dominant). Set based on user request: "template data_story", "template explicativo", "template narrativo", "template cinematografico/filme".
 - image_source: "brand" (or "marca") if user mentions brand images, project images, fotos da marca; "free" (or "gratis") if user mentions free stock photos, banco de imagens, pexels, unsplash, pixabay; "api" if user mentions AI generation, gerar imagens, criar imagens com IA; "folder" (or "pasta") if user specifies a folder path; "screenshot" (or "captura") if user mentions screenshot, captura de site, print do site, capturar pagina; "solid" (or "solido") if user wants no images, only solid/flat background. When screenshot, also populate "screenshot_urls" with any URLs mentioned. Default "brand".
 - image_background_color: only relevant when image_source is "solid". If user says just "solido", default to "#0D0D0D". If they specify a color, preserve it (e.g. "#112233").
-- image_model: only relevant when image_source is "api". Default is ALWAYS "${env.KIE_DEFAULT_MODEL || 'z-image'}" (from .env). Only change if the user explicitly requests a different model. Options: "z-image", "z-image-turbo", "flux-kontext-pro", "flux-kontext-max", "gpt-image-1".
+- image_model: only relevant when image_source is "api". Default is ALWAYS "${getDefaultImageModel(env.IMAGE_PROVIDER)}" (derived from IMAGE_PROVIDER + per-provider defaults in .env). Only change if the user explicitly requests a different model. Options depend on provider: inemaimg → "flux2-klein", "qwen-edit-2511", "ernie", "flux2-dev"; kie → "z-image", "z-image-turbo", "flux-kontext-pro", "flux-kontext-max", "gpt-image-1"; pollinations → "flux".
 - approval_modes: each stage can be "humano" (user must approve), "agente" (AI reviewer decides), or "auto" (advance automatically). Default "auto" for all. Set to "humano" if user explicitly asks for approval before each stage. Set to "agente" if user says "aprovação por agente", "agente revisa".
 - notifications: false only if user explicitly says "sem notificações", "silencioso", "não notificar".
 - video_audio: "narration" if user wants voiceover/narração (default), "music" if user wants background music only, "both" if user wants narration + music, "none" for silent/no audio.
@@ -227,9 +230,9 @@ Rules:
       }
       if (end === -1) return callback(null);
       const payload = JSON.parse(source.slice(start, end + 1));
-      const modelKeywords = ['z-image-turbo', 'flux-kontext-pro', 'flux-kontext-max', 'gpt-image-1', 'flux pro', 'flux max', 'gpt image'];
+      const modelKeywords = ['z-image-turbo', 'flux-kontext-pro', 'flux-kontext-max', 'gpt-image-1', 'flux pro', 'flux max', 'gpt image', 'flux2-klein', 'flux2-dev', 'qwen-edit', 'ernie'];
       const userPickedModel = modelKeywords.some(k => text.toLowerCase().includes(k));
-      if (!userPickedModel) payload.image_model = env.KIE_DEFAULT_MODEL || 'z-image';
+      if (!userPickedModel) payload.image_model = getDefaultImageModel(env.IMAGE_PROVIDER);
       payload.video_quick = true;
       payload.video_pro = payload.video_pro === true;
       payload.video_mode = payload.video_pro ? 'both' : 'quick';

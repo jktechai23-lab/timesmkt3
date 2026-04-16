@@ -9,7 +9,7 @@
 
 const path = require('path');
 const crypto = require('crypto');
-const { getEnv } = require('../config/env');
+const { getEnv, getDefaultImageModel } = require('../config/env');
 
 const { Bot, InputFile } = require('grammy');
 const fs = require('fs');
@@ -1350,7 +1350,7 @@ bot.on('message:text', async (ctx) => {
         image_formats: ['carousel_1080x1080'],
         video_count: 1,
         image_source: 'brand',
-        image_model: runtimeEnv.KIE_DEFAULT_MODEL || (runtimeEnv.IMAGE_PROVIDER === 'pollinations' ? 'flux' : 'z-image'),
+        image_model: getDefaultImageModel(runtimeEnv.IMAGE_PROVIDER),
         use_brand_overlay: true,
         campaign_brief: briefData.campaign_angle || '',
         video_mode: 'quick',

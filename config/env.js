@@ -60,6 +60,31 @@ function requireEnv(key) {
   return value;
 }
 
+// Default image model per provider — used as fallback when the payload doesn't
+// specify image_model. Each provider module also exports its own DEFAULT_MODEL
+// for worker use; this mirror exists so the bot layer can compute the right
+// default before a job is queued, without requiring the provider module.
+const PROVIDER_DEFAULT_MODEL_ENV = {
+  inemaimg: 'INEMAIMG_MODEL',
+  kie: 'KIE_DEFAULT_MODEL',
+};
+const PROVIDER_DEFAULT_MODEL_FALLBACK = {
+  inemaimg: 'flux2-klein',
+  kie: 'z-image',
+  pollinations: 'flux',
+  piramyd: 'flux',
+};
+
+function getDefaultImageModel(providerName) {
+  const provider = String(providerName || getEnv('IMAGE_PROVIDER', 'inemaimg')).toLowerCase();
+  const envKey = PROVIDER_DEFAULT_MODEL_ENV[provider];
+  if (envKey) {
+    const envValue = getEnv(envKey, '');
+    if (envValue) return envValue;
+  }
+  return PROVIDER_DEFAULT_MODEL_FALLBACK[provider] || 'flux2-klein';
+}
+
 module.exports = {
   ENV_PATH,
   loadEnv,
@@ -67,4 +92,5 @@ module.exports = {
   getList,
   hasEnv,
   requireEnv,
+  getDefaultImageModel,
 };
