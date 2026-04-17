@@ -181,6 +181,18 @@ function clearPendingRerun(chatId) {
   debouncedSave();
 }
 
+function setPendingLoterun(chatId, data) {
+  const s = get(chatId);
+  s.pendingLoterun = data;
+  debouncedSave();
+}
+
+function clearPendingLoterun(chatId) {
+  const s = get(chatId);
+  s.pendingLoterun = null;
+  debouncedSave();
+}
+
 function setPhotoTarget(chatId, destination, folder) {
   const s = get(chatId);
   s.photoTarget = { destination, folder };
@@ -252,6 +264,7 @@ module.exports = {
   setPendingLote, clearPendingLote,
   setPendingCampaign, clearPendingCampaign,
   setPendingRerun, clearPendingRerun,
+  setPendingLoterun, clearPendingLoterun,
   setPendingVideoApproval, clearPendingVideoApproval,
   setPendingImageError, clearPendingImageError,
   setCampaignV3, getCampaignV3, updateCampaignV3Stage, setCampaignV3Stage,

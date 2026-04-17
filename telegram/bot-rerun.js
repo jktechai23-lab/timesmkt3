@@ -11,6 +11,184 @@ function normalizeProjectFolder(projectDir, folderPath) {
   return `${projectDir}/imgs/${raw.replace(/^\.?\//, '')}`;
 }
 
+// Parse a comma/space-separated campaign list and expand ranges (c1-c5 → c1,c2,c3,c4,c5)
+function parseCampaignList(raw) {
+  const tokens = String(raw || '')
+    .split(/[,\s]+/)
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+  const out = [];
+  for (const tok of tokens) {
+    const rangeMatch = tok.match(/^c(\d+)-c(\d+)$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1], 10);
+      const end = parseInt(rangeMatch[2], 10);
+      if (Number.isFinite(start) && Number.isFinite(end) && start <= end) {
+        for (let i = start; i <= end; i += 1) out.push(`c${i}`);
+        continue;
+      }
+    }
+    out.push(tok);
+  }
+  return out;
+}
+
+// Build rerun payloads for a single campaign. Shared by /rerun and /loterun.
+// Returns { ok, error?, payloads?, sortedStages?, videoTemplates?, videoMode? }
+function buildRerunPayloads({ stageTokens, campaignFolder, projectDir, projectRoot, resolveStageAlias }) {
+  if (!Array.isArray(stageTokens) || stageTokens.length === 0) {
+    return { ok: false, error: 'Especifique quais etapas. Ex: video quick' };
+  }
+
+  const outputDir = `${projectDir}/outputs/${campaignFolder}`;
+  const absOutputDir = path.resolve(projectRoot, outputDir);
+
+  const allTokens = stageTokens.join(' ').toLowerCase().split(/[\s,]+/).filter(Boolean);
+  const stageNumbers = new Set();
+  let videoQuick = false;
+  let videoPro = false;
+  let videoDraft = false;
+
+  const origPayloadPath = path.join(absOutputDir, 'campaign_payload.json');
+  let origPayload = {};
+  try { origPayload = JSON.parse(fs.readFileSync(origPayloadPath, 'utf-8')); } catch {}
+
+  const videoTemplates = [];
+  let imageSource = origPayload.image_source || 'brand';
+  let payloadImageFolder = origPayload.image_folder || null;
+  let payloadImageBackgroundColor = origPayload.image_background_color || null;
+  const screenshotUrls = Array.isArray(origPayload.screenshot_urls) ? [...origPayload.screenshot_urls] : [];
+  const cleanFlags = { plan: false, img: false, audio: false };
+
+  for (let i = 0; i < allTokens.length; i += 1) {
+    const token = allTokens[i];
+    const next = allTokens[i + 1];
+
+    if ((token === 'video' || token === 'videos') && next === 'quick') {
+      stageNumbers.add(3); videoQuick = true; i += 1; continue;
+    }
+    if ((token === 'video' || token === 'videos') && next === 'pro') {
+      stageNumbers.add(3); videoPro = true; i += 1; continue;
+    }
+    if (token === 'quick') { stageNumbers.add(3); videoQuick = true; continue; }
+    if (token === 'pro') { stageNumbers.add(3); videoPro = true; continue; }
+    if (token === 'draft') { videoDraft = true; continue; }
+
+    const validTemplates = ['auto', 'data_story', 'explainer', 'narrativo', 'brand_film', 'report', 'gatilhos'];
+    if (token === 'template' && next && validTemplates.includes(next)) {
+      videoTemplates.push(next); i += 1; continue;
+    }
+    if (validTemplates.includes(token) && token !== 'auto') {
+      videoTemplates.push(token); continue;
+    }
+
+    if (token === 'cleanplan' || token === 'limparplano') { cleanFlags.plan = true; continue; }
+    if (token === 'cleanimg' || token === 'limparimagens') { cleanFlags.img = true; continue; }
+    if (token === 'cleanaudio' || token === 'limparaudio') { cleanFlags.audio = true; continue; }
+    if (token === 'cleanall' || token === 'limpartudo') { cleanFlags.plan = true; cleanFlags.img = true; cleanFlags.audio = true; continue; }
+
+    if (token === 'screenshot' || token === 'screenshots' || token === 'captura' || token === 'capturas') {
+      imageSource = 'screenshot'; continue;
+    }
+    if (token === 'api') { imageSource = 'api'; payloadImageFolder = null; payloadImageBackgroundColor = null; screenshotUrls.length = 0; continue; }
+    if (token === 'brand' || token === 'marca') { imageSource = 'brand'; payloadImageFolder = null; payloadImageBackgroundColor = null; screenshotUrls.length = 0; continue; }
+    if (token === 'free' || token === 'gratis' || token === 'stock') { imageSource = 'free'; payloadImageFolder = null; payloadImageBackgroundColor = null; screenshotUrls.length = 0; continue; }
+    if (token === 'pasta' || token === 'folder') {
+      imageSource = 'folder';
+      payloadImageBackgroundColor = null;
+      screenshotUrls.length = 0;
+      if (next && !resolveStageAlias(next) && !['quick', 'pro', 'screenshot', 'api', 'free'].includes(next)) {
+        payloadImageFolder = normalizeProjectFolder(projectDir, next);
+        i += 1;
+      }
+      continue;
+    }
+    if (token === 'solido' || token === 'solid') {
+      imageSource = 'solid';
+      payloadImageFolder = null;
+      screenshotUrls.length = 0;
+      if (next && !resolveStageAlias(next) && !['quick', 'pro', 'screenshot', 'api', 'free', 'brand', 'marca', 'folder', 'pasta'].includes(next)) {
+        payloadImageBackgroundColor = next;
+        i += 1;
+      } else {
+        payloadImageBackgroundColor = '#0D0D0D';
+      }
+      continue;
+    }
+
+    if (token.match(/^https?:\/\//) || token.match(/\.\w{2,4}$/)) {
+      screenshotUrls.push(token.startsWith('http') ? token : `https://${token}`);
+      if (imageSource === 'brand') imageSource = 'screenshot';
+      continue;
+    }
+
+    const resolved = resolveStageAlias(token);
+    if (resolved) {
+      stageNumbers.add(resolved);
+      if (resolved === 3 && !videoQuick && !videoPro) videoQuick = true;
+    }
+  }
+
+  const sortedStages = [...stageNumbers].sort();
+  if (sortedStages.length === 0) {
+    return { ok: false, error: 'Etapas nao reconhecidas. Use: brief, imagens, video quick, video pro, plataformas, distribuicao.' };
+  }
+
+  let briefData = {};
+  const briefPath = path.join(absOutputDir, 'creative', 'creative_brief.json');
+  if (fs.existsSync(briefPath)) {
+    try { briefData = JSON.parse(fs.readFileSync(briefPath, 'utf-8')); } catch {}
+  }
+
+  const hasSpecialTemplate = videoTemplates.some((t) => t === 'gatilhos' || t === 'report');
+  if (hasSpecialTemplate) {
+    videoPro = true;
+    videoQuick = false;
+  }
+
+  if (videoPro && !hasSpecialTemplate) videoQuick = true;
+  const videoMode = videoPro && videoQuick ? 'both' : videoPro ? 'pro' : 'quick';
+
+  if (videoTemplates.length === 0) videoTemplates.push(origPayload.video_template || 'auto');
+
+  const payloads = videoTemplates.map((tpl) => ({
+    task_name: campaignFolder,
+    task_date: new Date().toISOString().slice(0, 10),
+    project_dir: projectDir,
+    output_dir: outputDir,
+    platform_targets: briefData.platforms || ['instagram'],
+    language: 'pt-BR',
+    image_count: origPayload.image_count || 5,
+    image_formats: origPayload.image_formats || ['carousel_1080x1080'],
+    video_count: 1,
+    image_source: imageSource,
+    image_folder: payloadImageFolder,
+    image_background_color: payloadImageBackgroundColor,
+    image_model: getDefaultImageModel(),
+    image_provider: origPayload.image_provider || null,
+    image_reference: origPayload.image_reference || null,
+    image_reference_note: origPayload.image_reference_note || null,
+    screenshot_urls: screenshotUrls,
+    use_brand_overlay: true,
+    campaign_brief: briefData.campaign_angle || origPayload.campaign_brief || '',
+    video_mode: videoMode,
+    video_quick: videoQuick,
+    video_pro: videoPro,
+    video_draft: videoDraft,
+    video_template: tpl,
+    approval_modes: { stage1: 'auto', stage2: 'auto', stage3: 'auto', stage4: 'auto', stage5: 'auto' },
+    notifications: true,
+    skip_dependencies: true,
+    skip_completed: false,
+  }));
+
+  if (cleanFlags.plan || cleanFlags.img || cleanFlags.audio) {
+    for (const p of payloads) p.cleanFlags = cleanFlags;
+  }
+
+  return { ok: true, payloads, sortedStages, videoTemplates, videoMode, cleanFlags };
+}
+
 function registerRerunCommands(bot, deps) {
   const {
     projectRoot,
@@ -257,146 +435,17 @@ function registerRerunCommands(bot, deps) {
       return ctx.reply('Especifique quais etapas. Ex: <code>/rerun c13 video quick</code>', { parse_mode: 'HTML' });
     }
 
-    const allTokens = stageArgs.join(' ').toLowerCase().split(/[\s,]+/);
-    const stageNumbers = new Set();
-    let videoQuick = false;
-    let videoPro = false;
-    let videoDraft = false;
-
-    const origPayloadPath = path.join(absOutputDir, 'campaign_payload.json');
-    let origPayload = {};
-    try { origPayload = JSON.parse(fs.readFileSync(origPayloadPath, 'utf-8')); } catch {}
-    const videoTemplates = [];
-    let imageSource = origPayload.image_source || 'brand';
-    let payloadImageFolder = origPayload.image_folder || null;
-    let payloadImageBackgroundColor = origPayload.image_background_color || null;
-    const screenshotUrls = Array.isArray(origPayload.screenshot_urls) ? [...origPayload.screenshot_urls] : [];
-    const cleanFlags = { plan: false, img: false, audio: false };
-
-    for (let i = 0; i < allTokens.length; i += 1) {
-      const token = allTokens[i];
-      const next = allTokens[i + 1];
-
-      if ((token === 'video' || token === 'videos') && next === 'quick') {
-        stageNumbers.add(3); videoQuick = true; i += 1; continue;
-      }
-      if ((token === 'video' || token === 'videos') && next === 'pro') {
-        stageNumbers.add(3); videoPro = true; i += 1; continue;
-      }
-      if (token === 'quick') { stageNumbers.add(3); videoQuick = true; continue; }
-      if (token === 'pro') { stageNumbers.add(3); videoPro = true; continue; }
-      if (token === 'draft') { videoDraft = true; continue; }
-
-      // Template tokens — supports multiple templates in one command
-      const validTemplates = ['auto', 'data_story', 'explainer', 'narrativo', 'brand_film', 'report', 'gatilhos'];
-      if (token === 'template' && next && validTemplates.includes(next)) {
-        videoTemplates.push(next); i += 1; continue;
-      }
-      if (validTemplates.includes(token) && token !== 'auto') {
-        videoTemplates.push(token); continue;
-      }
-
-      if (token === 'cleanplan' || token === 'limparplano') { cleanFlags.plan = true; continue; }
-      if (token === 'cleanimg' || token === 'limparimagens') { cleanFlags.img = true; continue; }
-      if (token === 'cleanaudio' || token === 'limparaudio') { cleanFlags.audio = true; continue; }
-      if (token === 'cleanall' || token === 'limpartudo') { cleanFlags.plan = true; cleanFlags.img = true; cleanFlags.audio = true; continue; }
-
-      if (token === 'screenshot' || token === 'screenshots' || token === 'captura' || token === 'capturas') {
-        imageSource = 'screenshot'; continue;
-      }
-      if (token === 'api') { imageSource = 'api'; payloadImageFolder = null; payloadImageBackgroundColor = null; screenshotUrls.length = 0; continue; }
-      if (token === 'brand' || token === 'marca') { imageSource = 'brand'; payloadImageFolder = null; payloadImageBackgroundColor = null; screenshotUrls.length = 0; continue; }
-      if (token === 'free' || token === 'gratis' || token === 'stock') { imageSource = 'free'; payloadImageFolder = null; payloadImageBackgroundColor = null; screenshotUrls.length = 0; continue; }
-      if (token === 'pasta' || token === 'folder') {
-        imageSource = 'folder';
-        payloadImageBackgroundColor = null;
-        screenshotUrls.length = 0;
-        if (next && !resolveStageAlias(next) && !['quick', 'pro', 'screenshot', 'api', 'free'].includes(next)) {
-          payloadImageFolder = normalizeProjectFolder(projectDir, next);
-          i += 1;
-        }
-        continue;
-      }
-      if (token === 'solido' || token === 'solid') {
-        imageSource = 'solid';
-        payloadImageFolder = null;
-        screenshotUrls.length = 0;
-        if (next && !resolveStageAlias(next) && !['quick', 'pro', 'screenshot', 'api', 'free', 'brand', 'marca', 'folder', 'pasta'].includes(next)) {
-          payloadImageBackgroundColor = next;
-          i += 1;
-        } else {
-          payloadImageBackgroundColor = '#0D0D0D';
-        }
-        continue;
-      }
-
-      if (token.match(/^https?:\/\//) || token.match(/\.\w{2,4}$/)) {
-        screenshotUrls.push(token.startsWith('http') ? token : `https://${token}`);
-        if (imageSource === 'brand') imageSource = 'screenshot';
-        continue;
-      }
-
-      const resolved = resolveStageAlias(token);
-      if (resolved) {
-        stageNumbers.add(resolved);
-        if (resolved === 3 && !videoQuick && !videoPro) videoQuick = true;
-      }
+    const built = buildRerunPayloads({
+      stageTokens: stageArgs,
+      campaignFolder,
+      projectDir,
+      projectRoot,
+      resolveStageAlias,
+    });
+    if (!built.ok) {
+      return ctx.reply(built.error);
     }
-
-    const sortedStages = [...stageNumbers].sort();
-    if (sortedStages.length === 0) {
-      return ctx.reply('Etapas nao reconhecidas. Use: brief, imagens, video quick, video pro, plataformas, distribuicao.');
-    }
-
-    let briefData = {};
-    const briefPath = path.join(absOutputDir, 'creative', 'creative_brief.json');
-    if (fs.existsSync(briefPath)) {
-      try { briefData = JSON.parse(fs.readFileSync(briefPath, 'utf-8')); } catch {}
-    }
-
-    // Special templates run exclusively via the Pro handler
-    const hasSpecialTemplate = videoTemplates.some((t) => t === 'gatilhos' || t === 'report');
-    if (hasSpecialTemplate) {
-      videoPro = true;
-      videoQuick = false;
-    }
-
-    if (videoPro && !hasSpecialTemplate) videoQuick = true;
-    const videoMode = videoPro && videoQuick ? 'both' : videoPro ? 'pro' : 'quick';
-
-    // If no templates specified, default to 'auto'
-    if (videoTemplates.length === 0) videoTemplates.push(origPayload.video_template || 'auto');
-
-    // Build payloads — one per template (multiple templates = multiple video pro runs)
-    const payloads = videoTemplates.map((tpl) => ({
-      task_name: campaignFolder,
-      task_date: new Date().toISOString().slice(0, 10),
-      project_dir: projectDir,
-      output_dir: outputDir,
-      platform_targets: briefData.platforms || ['instagram'],
-      language: 'pt-BR',
-      image_count: 5,
-      image_formats: ['carousel_1080x1080'],
-      video_count: 1,
-      image_source: imageSource,
-      image_folder: payloadImageFolder,
-      image_background_color: payloadImageBackgroundColor,
-      image_model: getDefaultImageModel(),
-      screenshot_urls: screenshotUrls,
-      use_brand_overlay: true,
-      campaign_brief: briefData.campaign_angle || '',
-      video_mode: videoMode,
-      video_quick: videoQuick,
-      video_pro: videoPro,
-      video_draft: videoDraft,
-      video_template: tpl,
-      approval_modes: { stage1: 'auto', stage2: 'auto', stage3: 'auto', stage4: 'auto', stage5: 'auto' },
-      notifications: true,
-      skip_dependencies: true,
-      skip_completed: false,
-    }));
-
-    // Use first payload for display
+    const { payloads, sortedStages, videoTemplates, cleanFlags } = built;
     const payload = payloads[0];
 
     const stageLabelsMap = { 1: 'Brief', 2: 'Imagens', 3: 'Video', 4: 'Plataformas', 5: 'Distribuicao' };
@@ -405,10 +454,6 @@ function registerRerunCommands(bot, deps) {
         ? `Video ${payload.video_pro && payload.video_quick ? 'Quick + Pro' : payload.video_pro ? 'Pro' : 'Quick'}`
         : stageLabelsMap[stage]
     )).join(' + ');
-
-    if (cleanFlags.plan || cleanFlags.img || cleanFlags.audio) {
-      for (const p of payloads) p.cleanFlags = cleanFlags;
-    }
 
     const configLines = buildConfigTable(payload, `Reprocessar: ${campaignFolder}`);
     if (videoTemplates.length > 1) {
@@ -430,6 +475,107 @@ function registerRerunCommands(bot, deps) {
     await ctx.reply(configLines.join('\n'), { parse_mode: 'HTML' });
     session.setPendingRerun(chatId, { payloads, stages: sortedStages, campaignFolder });
   });
+
+  bot.command('loterun', async (ctx) => {
+    const chatId = String(ctx.chat.id);
+    const s = session.get(chatId);
+
+    if (s.runningTask) {
+      return ctx.reply('Ja existe um pipeline rodando. Use /status para acompanhar.');
+    }
+
+    const raw = ctx.match?.trim();
+    if (!raw) {
+      return ctx.reply(
+        '<b>/loterun — Rerun em série para múltiplas campanhas</b>\n\n'
+        + 'Uso: <code>/loterun &lt;campanhas&gt; &lt;etapas&gt; [flags]</code>\n\n'
+        + 'Campanhas: lista (<code>c1,c2,c3</code>) ou range (<code>c1-c5</code>).\n'
+        + 'Etapas e flags: mesma sintaxe do /rerun.\n\n'
+        + 'Exemplos:\n'
+        + '<code>/loterun c10,c11,c12 video pro template data_story</code>\n'
+        + '<code>/loterun c20-c25 imagens api</code>\n'
+        + '<code>/loterun c1,c2,c3 video pro template gatilhos cleanall</code>\n'
+        + '<code>/loterun c40,c41 plataformas</code>\n\n'
+        + '<i>Roda uma campanha por vez. Se uma falhar, segue para a próxima.</i>',
+        { parse_mode: 'HTML' },
+      );
+    }
+
+    const parts = raw.split(/\s+/).filter(Boolean);
+    if (parts.length < 2) {
+      return ctx.reply('Uso: <code>/loterun &lt;c1,c2,...&gt; &lt;etapas&gt;</code>', { parse_mode: 'HTML' });
+    }
+
+    const campaignQueries = parseCampaignList(parts[0]);
+    if (campaignQueries.length === 0) {
+      return ctx.reply('Lista de campanhas inválida. Use <code>c1,c2,c3</code> ou <code>c1-c5</code>.', { parse_mode: 'HTML' });
+    }
+
+    const stageArgs = parts.slice(1).join(' ').split(',').map((item) => item.trim()).filter(Boolean);
+
+    // Resolve each campaign and build payloads
+    const resolved = [];
+    const missing = [];
+    for (const q of campaignQueries) {
+      let projectDir = s.projectDir;
+      let folder = findCampaign(projectRoot, projectDir, q);
+      if (!folder) {
+        const r = findCampaignAcrossProjects(projectRoot, q);
+        if (r) { projectDir = r.projectDir; folder = r.campaignFolder; }
+      }
+      if (!folder) { missing.push(q); continue; }
+
+      const built = buildRerunPayloads({
+        stageTokens: stageArgs,
+        campaignFolder: folder,
+        projectDir,
+        projectRoot,
+        resolveStageAlias,
+      });
+      if (!built.ok) {
+        return ctx.reply(`Falha em <code>${q}</code>: ${built.error}`, { parse_mode: 'HTML' });
+      }
+      resolved.push({ query: q, projectDir, campaignFolder: folder, payloads: built.payloads, sortedStages: built.sortedStages, videoTemplates: built.videoTemplates });
+    }
+
+    if (resolved.length === 0) {
+      return ctx.reply(`Nenhuma campanha encontrada: ${missing.join(', ')}`);
+    }
+
+    // Show confirmation — use first resolved for the config table
+    const first = resolved[0];
+    const firstPayload = first.payloads[0];
+    const stageLabelsMap = { 1: 'Brief', 2: 'Imagens', 3: 'Video', 4: 'Plataformas', 5: 'Distribuicao' };
+    const stageLabel = first.sortedStages.map((stage) => (
+      stage === 3
+        ? `Video ${firstPayload.video_pro && firstPayload.video_quick ? 'Quick + Pro' : firstPayload.video_pro ? 'Pro' : 'Quick'}`
+        : stageLabelsMap[stage]
+    )).join(' + ');
+
+    const configLines = buildConfigTable(firstPayload, `Lote rerun — ${resolved.length} campanhas`);
+    if (first.videoTemplates.length > 1) {
+      configLines.push(`\n<b>Templates (${first.videoTemplates.length}):</b> ${first.videoTemplates.join(', ')}`);
+    }
+    configLines.push(`\n<b>Etapas:</b> ${stageLabel}`);
+    if (firstPayload.cleanFlags) {
+      const cleans = [];
+      if (firstPayload.cleanFlags.plan) cleans.push('planos');
+      if (firstPayload.cleanFlags.img) cleans.push('imagens');
+      if (firstPayload.cleanFlags.audio) cleans.push('áudio');
+      if (cleans.length) configLines.push(`<b>Limpar:</b> ${cleans.join(', ')}`);
+    }
+    const preview = resolved.slice(0, 10).map((r, i) => `${i + 1}. <code>${r.campaignFolder}</code>`).join('\n');
+    const more = resolved.length > 10 ? `\n<i>...e mais ${resolved.length - 10}</i>` : '';
+    configLines.push(`\n<b>Campanhas (${resolved.length}):</b>\n${preview}${more}`);
+    if (missing.length > 0) {
+      configLines.push(`\n<b>Não encontradas:</b> ${missing.join(', ')}`);
+    }
+    configLines.push('\n<i>Roda em série. Se uma falhar, segue a próxima.</i>');
+    configLines.push('Responda <b>sim</b> para iniciar ou <b>não</b> para cancelar.');
+
+    await ctx.reply(configLines.join('\n'), { parse_mode: 'HTML' });
+    session.setPendingLoterun(chatId, { items: resolved });
+  });
 }
 
-module.exports = { registerRerunCommands, normalizeProjectFolder };
+module.exports = { registerRerunCommands, normalizeProjectFolder, buildRerunPayloads, parseCampaignList };

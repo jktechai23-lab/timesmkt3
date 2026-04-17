@@ -228,15 +228,17 @@ bot.command('start', async (ctx) => {
   const s = session.get(chatId);
 
   await ctx.reply(
-    `Ola! Sou o bot do <b>timesmkt3 v4.3</b>.\n\n` +
+    `Ola! Sou o bot do <b>timesmkt3 v4.5</b>.\n\n` +
     `Projeto ativo: <code>${s.projectDir}</code>\n\n` +
     `<b>Comandos principais:</b>\n` +
     `/campanha &lt;nome&gt; — rodar pipeline 5 etapas\n` +
     `/rerun &lt;campanha&gt; &lt;etapas&gt; — reprocessar etapas\n` +
+    `/loterun &lt;c1,c2,...&gt; &lt;etapas&gt; — rerun em série\n` +
+    `/lotequick &lt;campanhas&gt; fonte ... — batch video quick\n` +
     `/continue &lt;campanha&gt; — continuar de onde parou\n` +
     `/status — ver status do pipeline\n` +
     `/enviar &lt;campanha&gt; [tipo] — receber arquivos\n` +
-    `/import &lt;campanhas&gt; &lt;origem&gt; — exportar para importa/\n` +
+    `/import &lt;campanhas&gt; &lt;origem&gt; — copiar assets para imports/\n` +
     `/cancel — cancelar pipeline ativo\n` +
     `/projetos — listar/mudar projeto\n` +
     `/help — menu completo`,
@@ -246,30 +248,47 @@ bot.command('start', async (ctx) => {
 
 bot.command('help', async (ctx) => {
   await ctx.reply(
-    `<b>timesmkt3 v4.3 — Menu Completo</b>\n\n` +
+    `<b>timesmkt3 v4.5 — Menu Completo</b>\n\n` +
 
-    `<b>Pipeline (5 etapas)</b>\n` +
-    `/campanha &lt;nome&gt; [opcoes] — pipeline completo\n` +
-    `/lote — ajuda de lotes\n` +
-    `/lotequick &lt;ativos|todos|campanhas ...&gt; [qtd] fonte ... [modo ...] — batch quick\n` +
-    `/lotecontinue &lt;batch_id&gt; — retomar lote do erro\n` +
-    `/rerun &lt;campanha&gt; &lt;etapas&gt; — reprocessar\n` +
+    `<b>Pipeline (uma campanha)</b>\n` +
+    `/campanha &lt;nome&gt; [opcoes] — pipeline completo (5 etapas)\n` +
+    `/rerun &lt;campanha&gt; &lt;etapas&gt; [flags] — reprocessar etapas\n` +
     `/continue &lt;campanha&gt; — continuar de onde parou\n` +
     `/cancel — cancelar pipeline ativo\n` +
-    `/status — status por etapa\n` +
+    `/status — status por etapa\n\n` +
+
+    `<b>Lotes (múltiplas campanhas)</b>\n` +
+    `/lote — ajuda de lotes\n` +
+    `/lotequick &lt;campanhas|ativos|todos&gt; fonte ... [modo ...] — batch video quick\n` +
+    `/lotecontinue &lt;batch_id&gt; — retomar lote após erro\n` +
+    `/loterun &lt;c1,c2,...&gt; &lt;etapas&gt; [flags] — rerun em série (ex: vários Pro)\n\n` +
+
+    `<b>Saídas e assets</b>\n` +
     `/outputs — listar campanhas\n` +
     `/relatorio &lt;campanha&gt; — resumo de arquivos\n` +
     `/enviar &lt;campanha&gt; [imagens|videos|audio|copy|tudo]\n` +
-    `/import &lt;campanhas&gt; &lt;origem&gt; — copiar assets para importa/\n` +
+    `/import &lt;campanhas&gt; &lt;origem&gt; [mod] — copiar assets para imports/\n\n` +
+
+    `<b>Aprovações</b>\n` +
     `/aprovar — re-verificar aprovacoes pendentes\n` +
     `/modos [etapa] [humano|agente|auto]\n\n` +
 
     `<b>Etapas do pipeline:</b>\n` +
     `  1. Estrategia — Research + Diretor Criativo + Copywriter\n` +
     `  2. Imagens — Ad Creative Designer (validação aspect ratio)\n` +
-    `  3. Video — Quick (ffmpeg) + Pro (Diretor de Foto + Opus + Remotion)\n` +
+    `  3. Video — Quick (ffmpeg) + Pro (Diretor de Foto + Remotion)\n` +
     `  4. Plataformas — Instagram, YouTube, TikTok, Facebook, Threads, LinkedIn\n` +
     `  5. Distribuicao — Upload + Agendar + Publicar\n\n` +
+
+    `<b>Templates de vídeo Pro</b>\n` +
+    `auto, data_story, explainer, narrativo, brand_film, report, gatilhos\n` +
+    `(podem ser combinados: <code>/rerun c13 video pro data_story explainer</code>)\n\n` +
+
+    `<b>Fontes de imagem</b>\n` +
+    `brand (assets da marca), api (IA), free (stock), screenshot (URL), folder (pasta), solid #hex\n\n` +
+
+    `<b>Limpeza (flags do /rerun e /loterun)</b>\n` +
+    `cleanplan, cleanimg, cleanaudio, cleanall\n\n` +
 
     `<b>Projetos</b>\n` +
     `/projetos — lista projetos\n` +
@@ -281,23 +300,21 @@ bot.command('help', async (ctx) => {
 
     `<b>Midia</b>\n` +
     `/img-api, /img-free, /img-pasta\n` +
-    `/tts-api — narracao ElevenLabs\n` +
+    `/tts-api — narracao (Chatterbox VC local por padrão)\n` +
     `/media-status — APIs configuradas\n\n` +
 
     `<b>Fotos (upload)</b>\n` +
     `/fotoprojeto — fotos vao para assets/\n` +
     `/fotocampanha — fotos vao para campanha ativa\n\n` +
 
-    `<b>Rerun / Continue:</b>\n` +
+    `<b>Exemplos rápidos</b>\n` +
     `<code>/continue c16</code> — continua de onde parou\n` +
-    `<code>/continue c16 screenshot</code> — com capturas do site\n` +
-    `<code>/rerun c15 video pro</code>\n` +
-    `<code>/rerun c14 imagens api</code>\n` +
-    `<code>/rerun c13 2,3</code>\n` +
-    `<code>/lote</code>\n` +
+    `<code>/rerun c15 video pro template data_story</code>\n` +
+    `<code>/rerun c14 imagens api cleanimg</code>\n` +
+    `<code>/loterun c10,c11,c12 video pro data_story</code>\n` +
+    `<code>/loterun c20-c25 imagens api</code>\n` +
     `<code>/lotequick ativos 10 fonte solido #0D0D0D modo enxuto</code>\n` +
-    `<code>/lotequick campanhas c2,c44,c45 fonte brand modo normal</code>\n` +
-    `Ajustes do lote: <code>fonte api</code>, <code>fonte pasta prj/inema/imgs</code>, <code>fonte screenshot https://site.com</code>, <code>modo enxuto</code>, <code>modo normal</code>\n\n` +
+    `<code>/import c55-c59 report videos</code>\n\n` +
 
     `<b>Ajuda detalhada</b>\n` +
     `/helpcampanha /helpaprovacoes /helpimagens\n` +
@@ -900,6 +917,7 @@ bot.command('lote', async (ctx) => {
     + 'Comandos disponíveis:\n'
     + '<code>/lotequick &lt;ativos|todos|campanhas ...&gt; [qtd] fonte &lt;tipo&gt; [modo &lt;enxuto|normal&gt;]</code>\n\n'
     + '<code>/lotecontinue &lt;batch_id&gt;</code>\n\n'
+    + '<code>/loterun &lt;c1,c2,...&gt; &lt;etapas&gt; [flags]</code> — rerun em série\n\n'
     + 'Escopos:\n'
     + '• <b>ativos</b> — só campanhas não arquivadas\n'
     + '• <b>todos</b> — inclui arquivadas\n\n'
@@ -1291,6 +1309,8 @@ bot.on('message:text', async (ctx) => {
 
   if (await handlePendingRerun(ctx, chatId, s, text)) return;
 
+  if (await handlePendingLoterun(ctx, chatId, s, text)) return;
+
   if (await handlePendingLote(ctx, chatId, s, text)) return;
 
   if (await handlePendingCampaign(ctx, chatId, s, text)) return;
@@ -1607,6 +1627,7 @@ const {
   handlePendingRerun,
   handlePendingCampaign,
   handlePendingLote,
+  handlePendingLoterun,
 } = createPendingTextHandlers({
   projectRoot: PROJECT_ROOT,
   session,

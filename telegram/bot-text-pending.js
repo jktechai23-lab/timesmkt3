@@ -44,11 +44,19 @@ function createPendingTextHandlers(deps) {
     const stageLabels = { 1: 'Brief', 2: 'Imagens', 3: 'Vídeo', 4: 'Plataformas', 5: 'Distribuição' };
     const stageText = rerunStages.map((n) => stageLabels[n] || `Etapa ${n}`).join(', ');
     const source = normalizeImageSource(payload.image_source);
+    const provLabel = (payload.image_provider || '').toUpperCase() || 'default';
     const lines = [
       `Reprocessamento: <b>${payload.task_name}</b>`,
       `Etapas: ${stageText}`,
       `Fonte de imagens: <b>${sourceLabels[source] || source}</b>`,
+      `Imagens: <b>${payload.image_count || 5}</b>`,
     ];
+    if (source === 'api') {
+      lines.push(`Provider: <b>${provLabel}</b> | Modelo: <b>${payload.image_model || 'default'}</b>`);
+    }
+    if (payload.image_reference) {
+      lines.push(`Referência: <code>${payload.image_reference}</code>`);
+    }
     if (source === 'folder' && payload.image_folder) {
       lines.push(`Pasta: <code>${payload.image_folder}</code>`);
     }
@@ -58,7 +66,9 @@ function createPendingTextHandlers(deps) {
     if (source === 'screenshot' && Array.isArray(payload.screenshot_urls) && payload.screenshot_urls.length > 0) {
       lines.push(`URLs: ${payload.screenshot_urls.join(', ')}`);
     }
-    lines.push('Responda <b>sim</b> para confirmar, <b>não</b> para cancelar, ou ajuste com <code>fonte pasta ...</code>, <code>fonte screenshot ...</code>, <code>fonte api</code>, <code>fonte solido #111111</code>.');
+    lines.push('');
+    lines.push('Ajustes: <code>imagens N</code>, <code>provider X</code>, <code>modelo X</code>, <code>fonte X</code>');
+    lines.push('Responda <b>sim</b> para confirmar ou <b>não</b> para cancelar.');
     return lines.join('\n');
   }
 
@@ -202,7 +212,7 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
       return true;
     }
 
-    const rerunPayload = s.pendingRerun.payload;
+    const rerunPayload = s.pendingRerun.payload || (s.pendingRerun.payloads && s.pendingRerun.payloads[0]);
     const sourceMatch = text.match(/^fonte\s+(brand|marca|api|free|gratis|stock|screenshot|captura|capturas|pasta|folder|solido|solid)(?:\s+(.+))?$/i);
     if (sourceMatch) {
       const nextSource = normalizeImageSource(sourceMatch[1]);
@@ -238,6 +248,35 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
       return true;
     }
 
+    // Reference handler MUST be before URL detection (filenames with .jpg/.png trigger URL matcher)
+    const refMatchEarly = lower.match(/^(?:ref(?:erencia|erência)?|reference)\s+(.+)$/i);
+    if (refMatchEarly) {
+      const refValue = refMatchEarly[1].trim();
+      const updateAll = (key, value) => {
+        rerunPayload[key] = value;
+        if (s.pendingRerun.payloads) s.pendingRerun.payloads.forEach((p) => { p[key] = value; });
+      };
+      if (refValue === 'nenhuma' || refValue === 'sem' || refValue === 'none') {
+        updateAll('image_reference', null);
+        updateAll('image_reference_note', null);
+      } else {
+        updateAll('image_reference', refValue);
+      }
+      const msg = rerunPayload.image_reference ? `✅ Referência: <b>${rerunPayload.image_reference}</b>` : '✅ Referência removida';
+      await ctx.reply(`${msg}\n\n${describePendingRerun(rerunPayload, s.pendingRerun.stages)}`, { parse_mode: 'HTML' });
+      return true;
+    }
+    if (/^sem\s+ref(?:erencia|erência)?$/i.test(lower)) {
+      const updateAll = (key, value) => {
+        rerunPayload[key] = value;
+        if (s.pendingRerun.payloads) s.pendingRerun.payloads.forEach((p) => { p[key] = value; });
+      };
+      updateAll('image_reference', null);
+      updateAll('image_reference_note', null);
+      await ctx.reply(`✅ Referência removida\n\n${describePendingRerun(rerunPayload, s.pendingRerun.stages)}`, { parse_mode: 'HTML' });
+      return true;
+    }
+
     if ((lower.match(/^https?:\/\//) || lower.includes('.')) && !isConfirm) {
       const urls = text.split(/[\s,]+/).filter(Boolean).filter((token) => /^https?:\/\//i.test(token) || /\.\w{2,}(\/|$)/.test(token));
       if (urls.length > 0) {
@@ -250,17 +289,68 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
       }
     }
 
+    // Helper: update all payloads and re-show config
+    const updateAllPayloads = (key, value) => {
+      rerunPayload[key] = value;
+      if (s.pendingRerun.payloads) s.pendingRerun.payloads.forEach((p) => { p[key] = value; });
+    };
+    const showUpdatedConfig = async (msg) => {
+      await ctx.reply(`${msg}\n\n${describePendingRerun(rerunPayload, s.pendingRerun.stages)}`, { parse_mode: 'HTML' });
+    };
+
+    // Adjust image_count: "imagens 10", "images 15"
+    const imgCountMatch = lower.match(/^(?:imagens?|images?)\s+(\d+)$/i);
+    if (imgCountMatch) {
+      updateAllPayloads('image_count', parseInt(imgCountMatch[1], 10));
+      await showUpdatedConfig(`✅ Imagens: <b>${rerunPayload.image_count}</b>`);
+      return true;
+    }
+
+    // Adjust provider: "provider inemaimg", "provider kie"
+    const provMatch = lower.match(/^(?:provider|provedor)\s+(.+)$/i);
+    if (provMatch) {
+      const prov = provMatch[1].trim().toLowerCase();
+      updateAllPayloads('image_provider', prov);
+      updateAllPayloads('image_model', getDefaultImageModel(prov));
+      await showUpdatedConfig(`✅ Provider: <b>${prov}</b> (modelo: ${rerunPayload.image_model})`);
+      return true;
+    }
+
+    // Adjust model: "modelo flux2-klein", "model qwen-edit-2511"
+    const modelMatch = lower.match(/^(?:modelo?|model)\s+(.+)$/i);
+    if (modelMatch) {
+      updateAllPayloads('image_model', modelMatch[1].trim());
+      await showUpdatedConfig(`✅ Modelo: <b>${rerunPayload.image_model}</b>`);
+      return true;
+    }
+
     if (!isConfirm) return false;
 
     const { payloads: rerunPayloads, payload: singlePayload, stages: rerunStages, campaignFolder } = s.pendingRerun;
     session.clearPendingRerun(chatId);
 
-    // Support both old format (single payload) and new format (array of payloads)
     const allPayloads = rerunPayloads || [singlePayload];
-    const payload = allPayloads[0];
+
+    await ctx.reply(`Reprocessamento confirmado para <b>${campaignFolder}</b>.`, { parse_mode: 'HTML' });
+
+    executeRerunPayloads({ ctx, chatId, payloads: allPayloads, stages: rerunStages, campaignFolder })
+      .catch((err) => {
+        session.clearRunningTask(chatId);
+        session.clearCampaignV3(chatId);
+        bot.api.sendMessage(chatId, `Erro no reprocessamento: ${err.message}`).catch(() => {});
+      });
+
+    return true;
+  }
+
+  // Executes the rerun stages for a single campaign. Awaitable — used by /rerun (fire-and-forget)
+  // and /loterun (awaited sequentially). Sets/clears runningTask + campaignV3 state itself.
+  async function executeRerunPayloads({ ctx, chatId, payloads, stages: rerunStages, campaignFolder }) {
+    const payload = payloads[0];
 
     const videoMode = payload.video_pro && payload.video_quick ? 'Quick + Pro'
       : payload.video_pro ? 'Pro' : 'Quick';
+
     session.setRunningTask(chatId, {
       taskName: campaignFolder,
       taskDate: payload.task_date,
@@ -270,10 +360,10 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
       rerunStages,
       videoMode,
     });
-    // activeStages: from the lowest rerun stage through 5 (auto-advance may continue)
+
     const minStage = Math.min(...rerunStages);
     const activeStages = [];
-    for (let s = minStage; s <= 5; s++) activeStages.push(s);
+    for (let n = minStage; n <= 5; n += 1) activeStages.push(n);
 
     session.setCampaignV3(chatId, {
       payload,
@@ -284,7 +374,6 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
     });
     session.setCampaignV3Stage(chatId, minStage - 1);
 
-    // Clear signals only for active stages
     for (const stageNum of activeStages) monitoredSignals.delete(`stage_done:${payload.output_dir}:${stageNum}`);
     for (const sig of [...monitoredSignals]) {
       if (sig.startsWith(`phase:${payload.output_dir}:`)) monitoredSignals.delete(sig);
@@ -292,7 +381,7 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
 
     const stageLabels = { 1: 'Brief', 2: 'Imagens', 3: 'Video', 4: 'Plataformas', 5: 'Distribuicao' };
     const label = rerunStages.map((n) => (n === 3 ? `Video ${videoMode}` : stageLabels[n])).join(' + ');
-    await ctx.reply(`Reprocessamento confirmado para <b>${campaignFolder}</b>.\nEnfileirando: ${label}...`, { parse_mode: 'HTML' });
+    await ctx.reply(`Enfileirando <b>${campaignFolder}</b>: ${label}...`, { parse_mode: 'HTML' }).catch(() => {});
 
     const absOutDir = path.resolve(projectRoot, payload.output_dir);
     if (payload.cleanFlags) {
@@ -335,7 +424,7 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
       }
     }
 
-    const runRerunStages = async () => {
+    try {
       for (const stageNum of rerunStages) {
         const stageKey = `stage${stageNum}`;
         const agentNames = stages[stageKey];
@@ -363,12 +452,9 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
           if (fs.existsSync(logFile)) fs.unlinkSync(logFile);
         }
 
-        // Multiple templates: enqueue video_pro once per template
-        if (stageNum === 3 && allPayloads.length > 1) {
-          // Enqueue quick once with first payload
-          await enqueueStage(payload, agentNames.filter(a => a !== 'video_pro'));
-          // Enqueue video_pro for each template
-          for (const tplPayload of allPayloads) {
+        if (stageNum === 3 && payloads.length > 1) {
+          await enqueueStage(payload, agentNames.filter((a) => a !== 'video_pro'));
+          for (const tplPayload of payloads) {
             await enqueueStage(tplPayload, ['video_pro']);
             const tpl = tplPayload.video_template || 'auto';
             await ctx.reply(`🎬 Video Pro template <b>${tpl}</b> enfileirado`).catch(() => {});
@@ -402,16 +488,69 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
           }, 1800000);
         });
       }
-
+    } finally {
       session.clearRunningTask(chatId);
       session.clearCampaignV3(chatId);
-      await bot.api.sendMessage(chatId, `Reprocessamento de <b>${campaignFolder}</b> concluido!`, { parse_mode: 'HTML' }).catch(() => {});
-    };
+    }
 
-    runRerunStages().catch((err) => {
-      session.clearRunningTask(chatId);
-      session.clearCampaignV3(chatId);
-      bot.api.sendMessage(chatId, `Erro no reprocessamento: ${err.message}`).catch(() => {});
+    await bot.api.sendMessage(chatId, `Reprocessamento de <b>${campaignFolder}</b> concluido!`, { parse_mode: 'HTML' }).catch(() => {});
+  }
+
+  async function handlePendingLoterun(ctx, chatId, s, text) {
+    if (!s.pendingLoterun) return false;
+
+    const lower = text.toLowerCase().trim();
+    const isConfirm = /^(sim|s|yes|ok|confirma|confirmar)$/.test(lower);
+    const isCancel = /^(n[aã]o|nao|n|cancel|cancelar|não)$/.test(lower);
+
+    if (!isConfirm && !isCancel) return false;
+
+    if (isCancel) {
+      session.clearPendingLoterun(chatId);
+      await ctx.reply('Lote rerun cancelado.');
+      return true;
+    }
+
+    const { items } = s.pendingLoterun;
+    session.clearPendingLoterun(chatId);
+
+    await ctx.reply(`<b>Lote rerun iniciado</b> — ${items.length} campanhas em série.`, { parse_mode: 'HTML' });
+
+    (async () => {
+      const results = [];
+      for (let i = 0; i < items.length; i += 1) {
+        const item = items[i];
+        const idx = i + 1;
+        const total = items.length;
+        await bot.api.sendMessage(chatId, `▶️ <b>${idx}/${total}</b> — <code>${item.campaignFolder}</code>`, { parse_mode: 'HTML' }).catch(() => {});
+        try {
+          await executeRerunPayloads({
+            ctx,
+            chatId,
+            payloads: item.payloads,
+            stages: item.sortedStages,
+            campaignFolder: item.campaignFolder,
+          });
+          results.push({ ok: true, campaignFolder: item.campaignFolder });
+          await bot.api.sendMessage(chatId, `✅ <b>${idx}/${total}</b> — <code>${item.campaignFolder}</code> concluída`, { parse_mode: 'HTML' }).catch(() => {});
+        } catch (err) {
+          results.push({ ok: false, campaignFolder: item.campaignFolder, error: err.message });
+          await bot.api.sendMessage(chatId, `❌ <b>${idx}/${total}</b> — <code>${item.campaignFolder}</code> falhou: ${err.message}`, { parse_mode: 'HTML' }).catch(() => {});
+          session.clearRunningTask(chatId);
+          session.clearCampaignV3(chatId);
+        }
+      }
+
+      const okCount = results.filter((r) => r.ok).length;
+      const failCount = results.length - okCount;
+      const summary = [`<b>Lote rerun concluído</b> — ${okCount}/${results.length} OK`];
+      if (failCount > 0) {
+        const failed = results.filter((r) => !r.ok).map((r) => r.campaignFolder);
+        summary.push(`Falhas: <code>${failed.join(', ')}</code>`);
+      }
+      await bot.api.sendMessage(chatId, summary.join('\n'), { parse_mode: 'HTML' }).catch(() => {});
+    })().catch((err) => {
+      bot.api.sendMessage(chatId, `Erro fatal no lote rerun: ${err.message}`).catch(() => {});
     });
 
     return true;
@@ -743,6 +882,7 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
     handlePendingRerun,
     handlePendingCampaign,
     handlePendingLote,
+    handlePendingLoterun,
   };
 }
 

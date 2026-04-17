@@ -1,11 +1,12 @@
-# timesmkt3 v4.3
+# timesmkt3 v4.5
 
 **timesmkt3** — sistema de automacao de conteudo para marketing digital usando agentes de IA coordenados por um bot Telegram.
 
 O sistema pesquisa, cria narrativa, gera imagens, produz videos, adapta copy para cada plataforma e publica — tudo automatizado com aprovacoes humanas em cada etapa.
 
-> Documentacao tecnica completa em [`CLAUDE.md`](CLAUDE.md)
-> Fluxo detalhado em [`doc/fluxo-pipeline-v4.md`](doc/fluxo-pipeline-v4.md)
+> **Visão geral do sistema (público)** → [`doc/sistema.md`](doc/sistema.md)
+> Arquitetura tecnica completa → [`CLAUDE.md`](CLAUDE.md)
+> Fluxo detalhado → [`doc/fluxo-pipeline-v4.md`](doc/fluxo-pipeline-v4.md)
 
 ---
 
@@ -358,9 +359,14 @@ timesmkt3/
 | `/enviar <campanha> [tipo]` | Recebe arquivos (imagens, videos, audio, copy, tudo) |
 | `/modos [etapa] [humano\|agente\|auto]` | Configura modos de aprovacao |
 | `/rerun <campanha> [stage]` | Reprocessa stages (mostra config antes de rodar) |
+| `/loterun <c1,c2,...> <etapas>` | Rerun em série para várias campanhas |
+| `/continue <campanha>` | Continua campanha de onde parou |
+| `/cancel` | Cancela pipeline ativo |
 | `/aprovar` | Re-verifica aprovacoes pendentes |
 | `/lote` | Ajuda de lotes |
 | `/lotequick <ativos\|todos\|campanhas ...> [qtd] fonte <tipo> [modo <enxuto\|normal>]` | Batch quick |
+| `/lotecontinue <batch_id>` | Retoma lote após erro |
+| `/import <campanhas> <origem>` | Copia assets para `imports/` |
 
 ### Painel de Briefing
 
@@ -426,6 +432,35 @@ Regras:
 - Os vídeos finais continuam na campanha original e também são copiados para `imports/<batch>/videos/`
 
 Flags: `cleanplan`, `cleanimg`, `cleanaudio`, `cleanall`
+
+### /loterun — Rerun em Série (múltiplas campanhas)
+
+Aplica a mesma operação do `/rerun` em várias campanhas, uma por vez. Útil para gerar vários vídeos Pro, re-renderizar imagens em lote, ou refazer plataformas para muitas campanhas.
+
+Comando:
+
+```text
+/loterun <c1,c2,...> <etapas> [flags]
+```
+
+Aceita lista (`c1,c2,c3`) ou range (`c1-c5`). Etapas e flags seguem exatamente a sintaxe do `/rerun`.
+
+Exemplos:
+
+```text
+/loterun c10,c11,c12 video pro template data_story
+/loterun c20-c25 imagens api
+/loterun c1,c2,c3 video pro template gatilhos cleanall
+/loterun c40,c41,c42 plataformas
+```
+
+Comportamento:
+
+- Confirmação `sim`/`não` antes de iniciar (mostra a lista de campanhas + config da primeira)
+- Roda **em série** (uma por vez, aguarda a anterior terminar)
+- Notificações de progresso: `▶ N/total` / `✅ N/total` / `❌ N/total`
+- Se uma falhar, **segue para a próxima** por padrão
+- Resumo no final: `Lote rerun concluído — X/Y OK. Falhas: ...`
 
 Tambem e possivel ajustar a fonte antes de confirmar com `sim`:
 
@@ -645,7 +680,7 @@ npm run media:status
 
 ## Roadmap v5
 
-- Fila multi-campanha por chat no Telegram: permitir colocar varias campanhas em sequencia sem bloquear o mesmo chat por `runningTask`.
+- ~~Fila multi-campanha por chat no Telegram~~ — entregue parcialmente via `/loterun` (série) e `/lotequick` (batch quick). Falta: fila realmente paralela entre chats.
 - Status por campanha: `/status` listando mais de uma campanha ativa ou enfileirada no mesmo chat.
 - Aprovações por campanha: respostas de aprovacao, `/continue`, `/rerun` e `/cancel` sempre vinculadas explicitamente a uma campanha, sem confundir contextos.
 - Publicacao em fila de producao para clips `yt-pub-lives`: permitir enfileirar clips para processamento e publicacao ordenada nesse destino.
@@ -658,9 +693,12 @@ npm run media:status
 
 | Documento | Conteudo |
 |---|---|
-| [CLAUDE.md](CLAUDE.md) | Arquitetura tecnica completa |
+| **[doc/sistema.md](doc/sistema.md)** | **Visão geral pública — comece por aqui** |
+| [CLAUDE.md](CLAUDE.md) | Arquitetura tecnica completa + versionamento + operação |
 | [doc/resumo-projeto.md](doc/resumo-projeto.md) | Resumo do projeto |
 | [doc/pipeline-aprovacoes.md](doc/pipeline-aprovacoes.md) | Pipeline e fluxo de aprovacoes |
 | [doc/agentes-criacao.md](doc/agentes-criacao.md) | Agentes de criacao (stages 1-3) |
 | [doc/agentes-distribuicao.md](doc/agentes-distribuicao.md) | Agentes de plataforma e distribuicao (stages 4-5) |
+| [doc/video-pro-pipeline-completo.md](doc/video-pro-pipeline-completo.md) | Video Pro — pipeline completo |
+| [doc/import-worker-campanhas.md](doc/import-worker-campanhas.md) | Comando `/import` — lotes de assets |
 | [skills/video-art-direction/SKILL.md](skills/video-art-direction/SKILL.md) | Video Art Direction — 12 presets de estilo visual |
