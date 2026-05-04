@@ -480,6 +480,85 @@ fonte brand
 
 ---
 
+## Templates Standalone (Factory CLI)
+
+Vídeos autorais INEMA gerados via scripts CLI dedicados — **não passam pelo bot/pipeline**. Rodam diretos no terminal e usam config própria em `config/profissoes-30.js` (90 profissões cadastradas).
+
+| Template | Script render | Formato | Duração | Mensagem |
+|---|---|---|---|---|
+| **CriaProf** | `render-criaprof.js <slug>` | 1:1 1080×1080 | 45s | Jornada infância → profissional ("desde criança ela sabia") |
+| **GERTRAN** | `render-gertran.js <slug>` | 9:16 1080×1920 | 31s | "Você sempre se adaptou. Faça de novo com IA." (público 35+) |
+| **CriaProf-CTA** | `render-criaprof-cta-916.js <slug> <prof\|generic>` | 9:16 1080×1920 | 37s | Hook forte 0-3s + jornada + CTA pesado 33-37s |
+
+### Como rodar
+
+**Uma profissão (ambos templates antigos):**
+```bash
+node batch-profissoes.js fisioterapeuta
+```
+Pipeline completo (~3.4 min): gen imgs (50 CriaProf + 20 nostalgia GERTRAN) → TTS Chatterbox bella → Whisper word-level → render dos 2 vídeos.
+
+**Lote (criaprof + gertran):**
+```bash
+node batch-profissoes.js all                    # todas 90
+node batch-profissoes.js new                    # só faltantes
+node batch-profissoes.js fisio,medica,dentista  # CSV
+```
+
+**CriaProf-CTA (3º template, 9:16 com hook + CTA):**
+```bash
+node batch-criaprof-cta.js <slug>              # gera ambas variantes (prof + generic)
+node batch-criaprof-cta.js all                 # 90 × 2 = 180 vídeos
+```
+Variantes:
+- `prof` — hook customizado por profissão (`FISIOTERAPIA / MUDOU. E AGORA?`)
+- `generic` — hook genérico (`SUA PROFISSÃO / MUDOU. E AGORA?`)
+
+Reaproveita as 50 imgs CriaProf existentes; gera narração nova com prefix `"A {profissão} mudou. E agora?"` entrando forte em t=0.
+
+**CriaProf-CTA com A/B testing narrativo (v1-v5):**
+```bash
+# Gerar TTS + whisper para uma profissão em 5 estilos × 2 variantes
+node gen-narrations-multi.js fisioterapeuta
+
+# Renderizar versão específica
+node render-criaprof-cta-916.js fisioterapeuta prof 3
+# → prj/inema/videos/criaprof-cta-916/.../fisioterapeuta-cta-prof-v3-32s.mp4
+```
+
+6 estilos narrativos para audience self-select — o hook é sempre `"{PROFISSÃO} MUDOU. E AGORA?"`:
+
+| Versão | Estilo | Abertura | Trilha |
+|---|---|---|---|
+| v0 | Original cronológica | narração padrão criaprof | pad ambient (freesound 569920) |
+| v1 | Memória nostálgica | "Você lembra quando tudo era manual?" | violão fingerpicking acústico (CC0) |
+| v2 | Confidente conversacional | "Lembra como tudo era diferente quando você começou?" | lo-fi jazz warm (CC0) |
+| v3 | Provocação direta | "Pensa rápido: quantas vezes essa profissão mudou?" | percussão cinematic build (CC-BY) |
+| v4 | Intimista contagem | "Você consegue lembrar quantas vezes essa profissão se reinventou?" | orchestral warm strings (CC-BY) |
+| v5 | Revelação | "E se eu te disser que você já viveu isso antes?" | bgm_v1 cinematográfico |
+
+As narrações v1-v5 são geradas via template engine por categoria de profissão (`config/profissoes-narrations-multi.js` — `getNarration(slug, version)`). A trilha muda automaticamente por versão via `getMusicForVariantAndVersion(variant, version)`.
+
+Nomenclatura dos arquivos com versão: `<slug>-cta-<variant>-v<N>-<dur>s.mp4`.
+Distribuição planejada: YouTube Shorts — audience self-select por estilo de narrativa.
+
+### Outputs
+
+```
+prj/inema/videos/criaprof/<slug>_<date>/video/<slug>-30s.mp4
+prj/inema/videos/gertran/<slug>_<date>/video/gertran-<slug>-31s.mp4
+prj/inema/videos/criaprof-cta-916/<slug>_<date>/video/<slug>-cta-{prof|generic}-37s.mp4
+prj/inema/videos/criaprof-cta-916/<slug>_<date>/video/<slug>-cta-{prof|generic}-v{1-5}-<dur>s.mp4
+```
+
+### Adicionar nova profissão
+
+Editar `config/profissoes-30.js` (ou `profissoes-extras.js` / `profissoes-extras-3.js`) com slug + character + props + narrações + hook + nostalgia. Para CTA-916, adicionar mapping em `config/profissoes-cta.js` (`noun` + `prefix`).
+
+> **Estes templates não estão integrados ao bot Telegram.** Para vídeos via bot use o pipeline normal (`/campanha`) com `worker-video-quick.js` / `worker-video-pro.js`.
+
+---
+
 ## Comecando do Zero
 
 ### 1. Instalar
@@ -701,4 +780,5 @@ npm run media:status
 | [doc/agentes-distribuicao.md](doc/agentes-distribuicao.md) | Agentes de plataforma e distribuicao (stages 4-5) |
 | [doc/video-pro-pipeline-completo.md](doc/video-pro-pipeline-completo.md) | Video Pro — pipeline completo |
 | [doc/import-worker-campanhas.md](doc/import-worker-campanhas.md) | Comando `/import` — lotes de assets |
+| [doc/modulos.md](doc/modulos.md) | Mapa de todos os módulos (`pipeline/` e `skills/`) |
 | [skills/video-art-direction/SKILL.md](skills/video-art-direction/SKILL.md) | Video Art Direction — 12 presets de estilo visual |
