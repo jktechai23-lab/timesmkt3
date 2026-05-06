@@ -318,7 +318,7 @@ bot.command('help', async (ctx) => {
 
     `<b>Ajuda detalhada</b>\n` +
     `/helpcampanha /helpaprovacoes /helpimagens\n` +
-    `/helpvideos /helptemplates /helpaudio /helpcustos\n\n` +
+    `/helpvideos /helptemplates /helpaudio /helpcustos /helpui\n\n` +
 
     `<b>Conversa</b>\n` +
     `/novochat — limpa historico\n` +
@@ -623,6 +623,42 @@ bot.command('helpcustos', async (ctx) => {
     `O pipeline (/campanha) usa Claude Sonnet para cada agente.\n` +
     `Custo depende do numero de agentes e tamanho dos outputs.`,
     { parse_mode: 'HTML' }
+  );
+});
+
+// ── /helpui ─────────────────────────────────────────────────────────────────
+
+bot.command('helpui', async (ctx) => {
+  await ctx.reply(
+    `<b>UI read-only — painel web</b>\n\n` +
+    `Inspeciona campanhas e config sem tocar no pipeline. Não roda nada, não edita nada — só lê.\n\n` +
+
+    `<b>Subir o servidor</b>\n` +
+    `<code>npm run ui</code>\n` +
+    `Abre em <code>http://0.0.0.0:5178</code> (acessível na LAN).\n\n` +
+
+    `<b>Variáveis</b>\n` +
+    `<code>TIMESMKT_UI_PORT=5180</code> — porta custom\n` +
+    `<code>TIMESMKT_UI_HOST=127.0.0.1</code> — só localhost\n\n` +
+
+    `<b>Telas</b>\n` +
+    `• <b>Campanhas</b> — grid com brief, previews, contagens, parâmetros agrupados (imagem · vídeo · distribuição · aprovação · skip), botões pra ver todos os ads, imgs, vídeos (player inline), payload.json, Publish.md, report.html\n` +
+    `• <b>Config</b> — versão, deps, scripts, skills, knowledge md por projeto, head do CLAUDE.md\n\n` +
+
+    `<b>Filtros</b>\n` +
+    `Busca livre (nome / data / projeto) + dropdown de projeto.\n\n` +
+
+    `<b>Garantias de isolamento</b>\n` +
+    `• zero deps externas (só http/fs/path)\n` +
+    `• zero spawn / exec / child_process\n` +
+    `• zero fs.write (POST/PUT/DELETE retornam 405)\n` +
+    `• safeResolve bloqueia path traversal\n` +
+    `• whitelist de extensões em /file\n\n` +
+
+    `<b>Arquivos</b>\n` +
+    `<code>ui/server.js</code>, <code>ui/public/{index.html,app.js,styles.css}</code>\n` +
+    `Apagar <code>ui/</code> + remover script <code>ui</code> do package.json zera 100%.`,
+    { parse_mode: 'HTML' },
   );
 });
 

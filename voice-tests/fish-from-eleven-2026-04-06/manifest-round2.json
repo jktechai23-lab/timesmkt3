@@ -1,0 +1,21 @@
+{
+  "provider": "fish-audio",
+  "source_text": "texto-eleven.txt",
+  "voices": [
+    {
+      "label": "ana_brazilian",
+      "reference_id": "2f41253e0f234410ab6d00a6f3617a21",
+      "notes": "Calma, suave, gentil, misteriosa"
+    },
+    {
+      "label": "bella",
+      "reference_id": "f18e96e1ed024df98860f6ff60bd6695",
+      "notes": "Expressiva, amigável, storytelling"
+    },
+    {
+      "label": "warm_gentle_midage",
+      "reference_id": "5b0bdf4a1e9c46e4b8469730ade927b9",
+      "notes": "Meia-idade, quente, sincera, emocional"
+    }
+  ]
+}

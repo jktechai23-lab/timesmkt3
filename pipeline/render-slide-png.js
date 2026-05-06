@@ -418,8 +418,10 @@ async function renderAllSlides(plan, preset, imagesDir, assetsDir, width, height
   // ads/ contains carousels with baked-in text — NEVER use as background
   const skipDirs = ['logo', 'logos', 'brand', 'icons', 'ads'];
 
-  // Filename patterns that indicate text/branding — skip these images
-  const skipPatterns = /banner|logo_|oficial_|badge_|stats_|apresenta|convite|_texto|texto_|_text|clean_|semcoroa|interno_|premium_|inema_.*v\d|classico|gold_|carousel_|_ad\.|_post\.|_story/i;
+  // Filename patterns that indicate text/branding — skip these images.
+  // API-generated images (`_generated_`) are clean by global rule and bypass this list.
+  const skipPatterns = /banner|logo_|oficial_|badge_|stats_|apresenta|convite|_texto|texto_|_text|clean_|semcoroa|interno_|premium_|inema_.*v\d|classico|gold_|_ad\.|_post\.|_story/i;
+  const generatedAllowlist = /_generated_\d+_/i;
 
   const collectImages = (dir) => {
     if (!dir || !fs.existsSync(dir)) return [];
@@ -431,8 +433,7 @@ async function renderAllSlides(plan, preset, imagesDir, assetsDir, width, height
           if (skipDirs.includes(entry.name.toLowerCase())) continue;
           walk(path.join(d, entry.name));
         } else if (imgExts.includes(path.extname(entry.name).toLowerCase())) {
-          // Skip files with brand/text patterns in name
-          if (skipPatterns.test(entry.name)) continue;
+          if (!generatedAllowlist.test(entry.name) && skipPatterns.test(entry.name)) continue;
           results.push(path.join(d, entry.name));
         }
       }

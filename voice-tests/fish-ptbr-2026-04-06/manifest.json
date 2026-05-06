@@ -1,0 +1,22 @@
+{
+  "provider": "fish-audio",
+  "created_at": "2026-04-06",
+  "text_file": "texto-curso.txt",
+  "voices": [
+    {
+      "label": "caine",
+      "reference_id": "8f50c4c145e44ec280fb759b32934890",
+      "notes": "Feminina, calorosa e profissional"
+    },
+    {
+      "label": "rachel",
+      "reference_id": "d9845a73451849f9af5eb40101e83b83",
+      "notes": "Feminina, clara e narrativa"
+    },
+    {
+      "label": "mulher",
+      "reference_id": "302d4d27c9344460a815ee46efdd5cf0",
+      "notes": "Feminina, publicitária e amigável"
+    }
+  ]
+}

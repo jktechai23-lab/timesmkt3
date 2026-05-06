@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparação de Vozes PT-BR — Rachel ElevenLabs vs Fish vs Open Source</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --panel: #141821;
+    --panel-hi: #1b2030;
+    --border: #262c3d;
+    --text: #e8ecf5;
+    --muted: #8891a8;
+    --accent: #6ee7b7;
+    --accent-2: #a78bfa;
+    --paid: #fb7185;
+    --opensource: #6ee7b7;
+    --cloud-free: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 24px 80px;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, "SF Pro Display", Segoe UI, Inter, system-ui, sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 {
+    font-size: 26px; font-weight: 700; margin: 0 0 6px;
+    letter-spacing: -0.02em;
+  }
+  .sub { color: var(--muted); margin: 0 0 32px; font-size: 14px; }
+  .text-ref {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 28px;
+    font-size: 14px; color: var(--muted); font-style: italic;
+  }
+  .text-ref strong { color: var(--text); font-style: normal; display: block; margin-bottom: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .group-label {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin: 28px 0 10px; font-weight: 600;
+  }
+  .group-label::after {
+    content: ""; flex: 1; height: 1px; background: var(--border);
+  }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 20px; margin-bottom: 10px;
+    display: grid; grid-template-columns: 34px 1fr; gap: 14px;
+    align-items: center; transition: border-color 0.15s;
+  }
+  .card:hover { border-color: #37405a; }
+  .card .num {
+    font-variant-numeric: tabular-nums; font-weight: 600;
+    color: var(--muted); font-size: 13px; text-align: center;
+  }
+  .card .main { min-width: 0; }
+  .card .title-row {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .card h3 { margin: 0; font-size: 15px; font-weight: 600; }
+  .tag {
+    font-size: 10px; padding: 2px 8px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+  }
+  .tag.paid { background: rgba(251, 113, 133, 0.14); color: var(--paid); }
+  .tag.opensource { background: rgba(110, 231, 183, 0.14); color: var(--opensource); }
+  .tag.cloud-free { background: rgba(96, 165, 250, 0.14); color: var(--cloud-free); }
+  .tag.ref { background: rgba(167, 139, 250, 0.18); color: var(--accent-2); }
+  .nota { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+  .meta { color: #5a6178; font-size: 11px; margin-top: 4px; font-family: "SF Mono", ui-monospace, Menlo, monospace; }
+  audio { width: 100%; height: 38px; display: block; margin-top: 8px; }
+  audio::-webkit-media-controls-panel { background: var(--panel-hi); }
+
+  .footer {
+    margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 12px;
+  }
+  .footer strong { color: var(--text); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Comparação de Vozes PT-BR para timesmkt3</h1>
+<p class="sub">Rachel ElevenLabs (referência) vs Fish Audio vs Chatterbox open source — todas falando o mesmo texto. Ouça pela ordem: comece pela #01 (Rachel original), depois as Fish, depois as open source.</p>
+
+<div class="text-ref">
+  <strong>Texto falado</strong>
+  "Essa Páscoa, o presente que vai mudar sua vida não está numa caixa de chocolate. Está em aprender IA. Enquanto você lê isso, profissionais estão se reinventando e abrindo portas que pareciam fechadas. A IA não vai te substituir, vai te libertar, mas só se você agir. O Inema tem trilhas gratuitas, comunidade ativa e décadas de experiência te guiando. Renasça profissionalmente. Esta Páscoa, comece grátis em Inema.Club."
+</div>
+
+<!-- REFERÊNCIA -->
+<div class="group-label">Referência — ElevenLabs (paga, ~$0.30/1k chars)</div>
+
+<div class="card">
+  <div class="num">01</div>
+  <div class="main">
+    <div class="title-row">
+      <h3>Rachel — ElevenLabs</h3>
+      <span class="tag ref">REFERÊNCIA</span>
+      <span class="tag paid">paga</span>
+    </div>
+    <p class="nota">Voz "padrão ouro" que está nos c0001–c0014 em 1old. É a que você já conhece.</p>
+    <audio controls preload="metadata" src="audio/01-rachel-elevenlabs.mp3"></audio>
+    <div class="meta">eleven_multilingual_v2 · voiceId 21m00Tcm4TlvDq8ikWAM</div>
+  </div>
+</div>
+
+<!-- FISH -->
+<div class="group-label">Fish Audio S1 (paga, ~$0.15/1k chars — metade do preço da ElevenLabs)</div>
+
+<div class="card">
+  <div class="num">02</div>
+  <div class="main">
+    <div class="title-row">
+      <h3>Bella</h3>
+      <span class="tag paid">paga</span>
+    </div>
+    <p class="nota">Default atual do timesmkt3. Expressiva, storytelling, direta.</p>
+    <audio controls preload="metadata" src="audio/02-bella-fish.mp3"></audio>
+    <div class="meta">fish-s1 · f18e96e1ed024df98860f6ff60bd6695</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="num">03</div>
+  <div class="main">
+    <div class="title-row">
+      <h3>Warm Gentle Midage</h3>
+      <span class="tag paid">paga</span>
+    </div>
+    <p class="nota">Meia-idade, quente, sincera, emocional. Candidata forte para narração institucional.</p>
+    <audio controls preload="metadata" src="audio/03-warm-gentle-midage-fish.mp3"></audio>
+    <div class="meta">fish-s1 · 5b0bdf4a1e9c46e4b8469730ade927b9</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="num">04</div>
+  <div class="main">
+    <div class="title-row">
+      <h3>Ana Brazilian</h3>
+      <span class="tag paid">paga</span>
+    </div>
+    <p class="nota">Calma, suave, gentil, misteriosa. Boa para conteúdo contemplativo.</p>
+    <audio controls preload="metadata" src="audio/04-ana-brazilian-fish.mp3"></audio>
+    <div class="meta">fish-s1 · 2f41253e0f234410ab6d00a6f3617a21</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="num">05</div>
+  <div class="main">
+    <div class="title-row">
+      <h3>Rachel clonada no Fish</h3>
+      <span class="tag paid">paga</span>
+    </div>
+    <p class="nota">Clone criado no Fish Audio a partir de samples da Rachel. Tentativa de replicar a original com custo menor.</p>
+    <audio controls preload="metadata" src="audio/05-rachel-fish-clone.mp3"></audio>
+    <div class="meta">fish-s1 · d9845a73451849f9af5eb40101e83b83</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="num">06</div>
+  <div class="main">
+    <div class="title-row">
+      <h3>Caine</h3>
+      <span class="tag paid">paga</span>
+    </div>
+    <p class="nota">Feminina, calorosa, profissional. Perfil institucional.</p>
+    <audio controls preload="metadata" src="audio/06-caine-fish.mp3"></audio>
+    <div class="meta">fish-s1 · 8f50c4c145e44ec280fb759b32934890</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="num">07</div>
+  <div class="main">
+    <div class="title-row">
+      <h3>Mulher</h3>
+      <span class="tag paid">paga</span>
+    </div>
+    <p class="nota">Publicitária, amigável, comercial clássica.</p>
+    <audio controls preload="metadata" src="audio/07-mulher-fish.mp3"></audio>
+    <div class="meta">fish-s1 · 302d4d27c9344460a815ee46efdd5cf0</div>
+  </div>
+</div>
+
+<!-- EDGE -->
+<div class="group-label">Microsoft Edge TTS (grátis, SaaS)</div>
+
+<div class="card">
+  <div class="num">08</div>
+  <div class="main">
+    <div class="title-row">
+      <h3>pt-BR Francisca</h3>
+      <span class="tag cloud-free">grátis</span>
+    </div>
+    <p class="nota">Voz neural da Microsoft. Nativa PT-BR, excelente pronúncia, zero custo. Usada no inemavox como fallback. Menos expressiva que as pagas, mas consistente.</p>
+    <audio controls preload="metadata" src="audio/08-edge-francisca.mp3"></audio>
+    <div class="meta">edge-tts · pt-BR-FranciscaNeural</div>
+  </div>
+</div>
+
+<!-- OPEN SOURCE -->
+<div class="group-label">Chatterbox Multilingual (open source, self-host — inemavox)</div>
+
+<div class="card">
+  <div class="num">09</div>
+  <div class="main">
+    <div class="title-row">
+      <h3>Chatterbox VC → Rachel</h3>
+      <span class="tag opensource">open source</span>
+    </div>
+    <p class="nota">Pipeline inemavox: Edge TTS Francisca gera a prosódia PT-BR nativa → Chatterbox VC transfere o timbre da Rachel. Resultado: "Rachel falando português com fluência de nativa". Totalmente self-hosted, GPU local, zero custo por caractere.</p>
+    <audio controls preload="metadata" src="audio/09-chatterbox-vc-rachel-ref.mp3"></audio>
+    <div class="meta">inemavox/tts_direct.py · engine=chatterbox-vc · ref=01-rachel-elevenlabs.mp3</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="num">10</div>
+  <div class="main">
+    <div class="title-row">
+      <h3>Chatterbox VC → Bella</h3>
+      <span class="tag opensource">open source</span>
+    </div>
+    <p class="nota">Mesmo pipeline, mas clonando o timbre da Bella (Fish) em cima da base Edge TTS. Comparar com #02 mostra quanto da Bella o Chatterbox consegue capturar.</p>
+    <audio controls preload="metadata" src="audio/10-chatterbox-vc-bella-ref.mp3"></audio>
+    <div class="meta">inemavox/tts_direct.py · engine=chatterbox-vc · ref=02-bella-fish.mp3</div>
+  </div>
+</div>
+
+<div class="footer">
+  <strong>Como decidir</strong><br>
+  Ouça na ordem 01 → 10. Depois: (a) qual voz entrega melhor o tom "Inema" que você quer? (b) o custo/qualidade da open source (#09, #10) é aceitável para o volume de narrações do timesmkt3? Se sim, padronizar o default; se não, ficar em Fish (metade do preço ElevenLabs).
+  <div class="legend">
+    <span><span class="tag ref">REFERÊNCIA</span> voz que você já conhece</span>
+    <span><span class="tag paid">paga</span> API SaaS, custo por caractere</span>
+    <span><span class="tag cloud-free">grátis</span> SaaS gratuito</span>
+    <span><span class="tag opensource">open source</span> self-host na sua GPU</span>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

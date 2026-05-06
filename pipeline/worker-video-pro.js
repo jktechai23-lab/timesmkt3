@@ -56,6 +56,7 @@ function createWorkerVideoProHandler({
   readBrandContext,
   videoTimestamp,
   backupIfExists,
+  resolveImageReference,
 }) {
   return async function handleVideoPro(job) {
     const {
@@ -140,18 +141,18 @@ function createWorkerVideoProHandler({
       if (image_source === 'solid') return [];
       const seen = new Set();
       const assets = [];
-      const addAssets = (items) => {
+      const addAssets = (items, source) => {
         for (const item of items || []) {
           if (!item?.path) continue;
           if (seen.has(item.path)) continue;
           if (item.imageType === 'clip') continue;
           seen.add(item.path);
-          assets.push(item);
+          assets.push({ ...item, source });
         }
       };
 
       if (image_source === 'folder' && imageFolder) {
-        addAssets(getFolderAssets(imageFolder));
+        addAssets(getFolderAssets(imageFolder), 'campaign');
       }
 
       const absImgsDir = path.resolve(projectRoot, output_dir, 'imgs');
@@ -163,15 +164,22 @@ function createWorkerVideoProHandler({
               const fullPath = path.join(absImgsDir, file);
               return { path: fullPath, imageType: 'raw', ...(getImageDimensions(fullPath) || {}) };
             }),
+          'campaign',
         );
       }
 
-      addAssets(getProjectAssets(project_dir));
+      addAssets(getProjectAssets(project_dir), 'brand');
       return assets;
     };
 
+    // Campaign imgs (qualquer aspect — square 1:1 será letterboxed para 9:16 pelo renderer)
+    // têm prioridade sobre brand library. Brand portrait só é fallback quando não há campaign.
     const pickFallbackAssetForScene = (fallbackAssets, sceneIndex) => {
       if (!fallbackAssets.length) return null;
+      const campaign = fallbackAssets.filter((a) => a.source === 'campaign' && a.imageType !== 'banner');
+      if (campaign.length > 0) {
+        return campaign[sceneIndex % campaign.length].path;
+      }
       const portrait = fallbackAssets.filter((asset) => asset.orientation === 'portrait');
       const rawPortrait = portrait.filter((asset) => asset.imageType !== 'banner');
       const preferred = rawPortrait.length > 0 ? rawPortrait : (portrait.length > 0 ? portrait : fallbackAssets);
@@ -192,6 +200,10 @@ function createWorkerVideoProHandler({
         const isLast = index === shotCount - 1;
         const duration = isLast ? Math.max(3, parseFloat((totalDuration - cursor).toFixed(1))) : baseDuration;
         const imagePath = pickFallbackAssetForScene(fallbackAssets, index);
+        // _generated_ é a marca de imagem API limpa; só é "has_text" se for ad/banner/post bruto.
+        const isGenerated = imagePath && /_generated_\d+_/i.test(imagePath);
+        const hasBakedText = !!(imagePath && !isGenerated &&
+          /(_post|_stories|oficial_|logo_|instagram|facebook|_ad\.|banner|calendar)/i.test(imagePath));
         shots.push({
           timing: `${cursor.toFixed(1)}s-${(cursor + duration).toFixed(1)}s`,
           start_s: parseFloat(cursor.toFixed(1)),
@@ -200,11 +212,15 @@ function createWorkerVideoProHandler({
           framing: index === 0 ? 'close-up' : index % 3 === 0 ? 'wide-shot' : 'medium-shot',
           motion: ['push-in', 'drift', 'ken-burns-in', 'pan-right'][index % 4],
           image: imagePath,
-          image_has_text: !!(imagePath && /(_post|_stories|carousel_|oficial_|logo_|instagram|facebook|_ad\.|banner|calendar)/i.test(imagePath)),
+          image_has_text: hasBakedText,
           face_position: 'center',
           text_overlay: isLast ? 'inema.club' : null,
           text_position: 'top',
-          image_reason: imagePath ? 'Fallback local após timeout do Photography Director' : 'Sem asset fallback disponível',
+          image_reason: imagePath
+            ? (isGenerated
+                ? 'Imagem API gerada na campanha (modo simples — sem Photography Director)'
+                : 'Asset local da marca (modo simples — sem Photography Director)')
+            : 'Sem asset fallback disponível',
           background_color: !imagePath ? (solidBackgroundColor || '#0D0D0D') : undefined,
         });
         cursor += duration;
@@ -1183,6 +1199,10 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
       const brand = useBrand ? readBrandContext(project_dir) : null;
       if (brand) log(output_dir, 'video_pro', `Brand context: ${brand.brandName} | provider: ${jobProvider}`);
 
+      // Resolve reference images
+      const refImages = resolveImageReference ? resolveImageReference(project_dir, job.data.image_reference) : [];
+      if (refImages.length > 0) log(output_dir, 'video_pro', `Reference images: ${refImages.map((r) => path.basename(r)).join(', ')}`);
+
       for (let i = 1; i <= video_count; i++) {
         const idx = String(i).padStart(2, '0');
         const planPath = vfFind(idx, '_scene_plan_motion.json');
@@ -1220,12 +1240,14 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
             cta: 'optimistic, inviting, forward momentum',
           };
           const mood = moodMap[sceneType] || moodMap.solution;
-          const rawPrompt = `${scene.image_prompt}. ${mood}. vertical 9:16.${colorHint} Cinematic lighting, photorealistic. No text, no words, no watermark.`;
+          const refGuide = refImages.length > 0 ? 'Based on the reference image, transform and adapt: ' : '';
+          const refSuffix = refImages.length > 0 ? ' Maintain core visual elements and color palette from reference.' : '';
+          const rawPrompt = `${refGuide}${scene.image_prompt}. ${mood}. vertical 9:16.${colorHint} Cinematic lighting, photorealistic.${refSuffix} No text, no words, no watermark.`;
           const finalPrompt = rawPrompt.length > 490 ? rawPrompt.slice(0, 487) + '...' : rawPrompt;
 
           log(output_dir, 'video_pro', `Generating image ${promptMap.size + 1} for video_${idx}: ${scene.image_prompt.slice(0, 80)}`);
           try {
-            await genImage(outputPath, finalPrompt, model, '9:16');
+            await genImage(outputPath, finalPrompt, model, '9:16', refImages);
             scene.image = outputPath;
             promptMap.set(scene.image_prompt, outputPath);
             planChanged = true;

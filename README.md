@@ -480,6 +480,39 @@ fonte brand
 
 ---
 
+## UI read-only (browser)
+
+Painel web isolado para inspecionar campanhas e config sem tocar no pipeline. **Não roda nada, não edita nada** — só lê arquivos.
+
+```bash
+npm run ui                                  # http://0.0.0.0:5178 (LAN ok)
+TIMESMKT_UI_PORT=5180 npm run ui            # porta custom
+TIMESMKT_UI_HOST=127.0.0.1 npm run ui       # restringir só ao localhost
+```
+
+**Endpoints (todos GET):**
+- `GET /` — interface
+- `GET /api/campaigns` — todas as campanhas em `prj/*/outputs/*` com payload, contagens, previews
+- `GET /api/config` — versão, deps, scripts, skills, knowledge files, head do `CLAUDE.md`
+- `GET /file?path=<rel>` — serve arquivo dentro de `ROOT/` (whitelist de extensões)
+
+**Telas:**
+- **Campanhas** — grid de cards. Cada card mostra: brief da campanha, 4 thumbs de preview, contagens (ads/imgs/vídeos/logs), parâmetros agrupados visualmente (imagem · vídeo · distribuição · aprovação · skip), tags de plataforma/template, atualização. Botões abrem modais com **todos os ads**, **todas as imgs**, **todos os vídeos** (player inline), `payload.json`, `Publish*.md`, e `interactive_report.html` (nova aba).
+- **Config** — versão do projeto, dependências, scripts npm, lista de skills com 1ª linha do SKILL.md, knowledge md por projeto, head do `CLAUDE.md`.
+
+**Filtros:** busca livre (nome / data / projeto) + dropdown de projeto.
+
+**Garantias de isolamento:**
+- Zero deps externas (só `http`, `fs`, `path` do Node)
+- Zero `spawn` / `exec` / `child_process`
+- Zero `fs.write*` (server retorna 405 em qualquer POST/PUT/DELETE)
+- `safeResolve` bloqueia path traversal
+- Whitelist de extensões em `/file` (img/vídeo/json/md/log/etc)
+
+Arquivos: `ui/server.js`, `ui/public/{index.html,app.js,styles.css}`. Apagar `ui/` + remover o script `ui` do `package.json` zera 100% do recurso.
+
+---
+
 ## Templates Standalone (Factory CLI)
 
 Vídeos autorais INEMA gerados via scripts CLI dedicados — **não passam pelo bot/pipeline**. Rodam diretos no terminal e usam config própria em `config/profissoes-30.js` (90 profissões cadastradas).

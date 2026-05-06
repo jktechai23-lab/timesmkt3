@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IMKT3 — UI read-only</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">im</span>
+          <div>
+            <strong>IMKT3</strong>
+            <small id="brandVersion">…</small>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-item is-active" data-view="campaigns">Campanhas</button>
+          <button class="nav-item" data-view="config">Config</button>
+          <button class="nav-item" data-view="help">Help</button>
+        </nav>
+        <div class="sidebar-footer">
+          <span class="badge">read-only</span>
+          <small id="lastRefresh"></small>
+        </div>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <h1 id="viewTitle">Campanhas</h1>
+          <div class="topbar-actions">
+            <input type="search" id="searchInput" placeholder="filtrar por nome / data / projeto…" />
+            <select id="projectFilter"><option value="">todos os projetos</option></select>
+            <button id="refreshBtn" type="button">atualizar</button>
+          </div>
+        </header>
+
+        <section id="viewCampaigns" class="view is-active">
+          <div class="stats" id="campaignStats"></div>
+          <div class="campaign-list" id="campaignList"></div>
+        </section>
+
+        <section id="viewConfig" class="view">
+          <div class="config-grid" id="configGrid"></div>
+        </section>
+
+        <section id="viewHelp" class="view">
+          <aside class="help-banner">
+            <div class="help-title">IMKT3 — UI read-only</div>
+            <p>
+              Painel de inspeção do <strong>timesmkt3</strong> (bot + orchestrator + workers). Read-only — a UI não dispara renders nem modifica nada no disco.
+            </p>
+            <p>
+              Os arquivos são lidos diretamente das pastas:
+              <code>prj/&lt;projeto&gt;/outputs/&lt;campanha&gt;_&lt;data&gt;/</code> contém ads, imgs, video, platforms e logs por campanha.
+            </p>
+          </aside>
+
+          <aside class="help-banner">
+            <div class="help-title">Aba Campanhas</div>
+            <p>
+              Cada card é uma campanha gerada pelo bot/orchestrator. Mostra contadores de <strong>ads (PNG)</strong>, <strong>imgs (API)</strong> e <strong>vídeos (mp4)</strong>.
+            </p>
+            <ul class="help-list">
+              <li><strong>Filtro de projeto</strong> (topo) limita às campanhas de um cliente específico.</li>
+              <li><strong>Busca</strong> filtra por nome, task_name, data ou projeto.</li>
+              <li>Cada campanha vive em <code>prj/&lt;projeto&gt;/outputs/&lt;task_name&gt;_&lt;date&gt;/</code>.</li>
+              <li>Clique nos botões <code>ads</code>, <code>imgs</code>, <code>vídeos</code> de cada card pra abrir lightbox/modal.</li>
+            </ul>
+          </aside>
+
+          <aside class="help-banner">
+            <div class="help-title">Aba Config</div>
+            <p>
+              Mostra metadata do projeto: versão (do <code>package.json</code>), Node, root path. Útil pra confirmar em qual repo/build a UI está apontando.
+            </p>
+          </aside>
+
+          <aside class="help-banner">
+            <div class="help-title">Vídeos do Estúdio (mkVIDEOS)</div>
+            <p>
+              Os <strong>vídeos autorais</strong> (criaprof, gertran, darkstory, storytree, etc) <strong>não vivem mais aqui</strong> — foram migrados pro projeto separado <code>~/projetos/mkvideos/</code>.
+            </p>
+            <ul class="help-list">
+              <li>UI dos vídeos: <a href="http://127.0.0.1:5278" target="_blank">http://127.0.0.1:5278</a> (mkVIDEOS · porta 5278)</li>
+              <li>Pra gerar novo vídeo, rode <code>node gen-&lt;tipo&gt;.js</code> no repo do mkvideos.</li>
+            </ul>
+          </aside>
+
+          <aside class="help-banner">
+            <div class="help-title">CLI relacionados (ainda no timesmkt3)</div>
+            <ul class="help-list">
+              <li><code>npm run bot</code> — bot do Telegram (orchestrator de campanhas)</li>
+              <li><code>npm run pipeline:worker</code> — worker BullMQ que processa jobs</li>
+              <li><code>npm run pipeline:run</code> — dispara um payload demo</li>
+              <li><code>npm run pipeline:run:payload &lt;json&gt;</code> — dispara payload inline</li>
+              <li><code>npm run campaign-import:scan</code> — importa campanhas externas</li>
+              <li><code>npm run media:status</code> — status dos provedores de mídia</li>
+              <li><code>npm run check:syntax</code> — checa sintaxe de todos os JS</li>
+              <li><code>npm run ui</code> — esta UI (porta 5178)</li>
+            </ul>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <div class="lightbox" id="lightbox" hidden>
+      <button class="lb-close" type="button" data-lb-close aria-label="fechar">×</button>
+      <button class="lb-nav lb-prev" type="button" data-lb-prev aria-label="anterior">‹</button>
+      <button class="lb-nav lb-next" type="button" data-lb-next aria-label="próxima">›</button>
+      <figure class="lb-stage">
+        <img id="lbImg" alt="" />
+        <figcaption id="lbCaption"></figcaption>
+      </figure>
+    </div>
+
+    <div class="modal" id="modal" hidden>
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-panel">
+        <header class="modal-head">
+          <h2 id="modalTitle"></h2>
+          <button type="button" data-close>×</button>
+        </header>
+        <div class="modal-body" id="modalBody"></div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

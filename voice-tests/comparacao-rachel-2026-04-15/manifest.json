@@ -1,0 +1,97 @@
+{
+  "criado_em": "2026-04-15T03:48:09.406Z",
+  "texto": "Essa Páscoa, o presente que vai mudar sua vida não está numa caixa de chocolate. Está em aprender IA. Enquanto você lê isso, profissionais estão se reinventando e abrindo portas que pareciam fechadas. A IA não vai te substituir, vai te libertar, mas só se você agir. O Inema tem trilhas gratuitas, comunidade ativa e décadas de experiência te guiando. Renasça profissionalmente. Esta Páscoa, comece grátis em Inema.Club.",
+  "amostras": [
+    {
+      "label": "01-rachel-elevenlabs",
+      "provider": "elevenlabs",
+      "options": {
+        "voiceId": "21m00Tcm4TlvDq8ikWAM",
+        "modelId": "eleven_multilingual_v2"
+      },
+      "nota": "Rachel — ElevenLabs (referência)",
+      "ok": true,
+      "file": "01-rachel-elevenlabs.mp3",
+      "bytes": 547988,
+      "duracao_gen_s": 5.6
+    },
+    {
+      "label": "02-bella-fish",
+      "provider": "fish",
+      "options": {
+        "voiceId": "f18e96e1ed024df98860f6ff60bd6695",
+        "model": "s1"
+      },
+      "nota": "Bella — Fish Audio S1 (expressiva/storytelling)",
+      "ok": true,
+      "file": "02-bella-fish.mp3",
+      "bytes": 488175,
+      "duracao_gen_s": 11.1
+    },
+    {
+      "label": "03-warm-gentle-midage-fish",
+      "provider": "fish",
+      "options": {
+        "voiceId": "5b0bdf4a1e9c46e4b8469730ade927b9",
+        "model": "s1"
+      },
+      "nota": "Warm Gentle Midage — Fish S1 (meia-idade, quente)",
+      "ok": true,
+      "file": "03-warm-gentle-midage-fish.mp3",
+      "bytes": 491937,
+      "duracao_gen_s": 10.1
+    },
+    {
+      "label": "04-ana-brazilian-fish",
+      "provider": "fish",
+      "options": {
+        "voiceId": "2f41253e0f234410ab6d00a6f3617a21",
+        "model": "s1"
+      },
+      "nota": "Ana Brazilian — Fish S1 (calma, suave, gentil)",
+      "ok": true,
+      "file": "04-ana-brazilian-fish.mp3",
+      "bytes": 540002,
+      "duracao_gen_s": 10.8
+    },
+    {
+      "label": "05-rachel-fish-clone",
+      "provider": "fish",
+      "options": {
+        "voiceId": "d9845a73451849f9af5eb40101e83b83",
+        "model": "s1"
+      },
+      "nota": "Rachel clonada no Fish — tentativa de replicar Rachel via clone",
+      "ok": true,
+      "file": "05-rachel-fish-clone.mp3",
+      "bytes": 426735,
+      "duracao_gen_s": 7.7
+    },
+    {
+      "label": "06-caine-fish",
+      "provider": "fish",
+      "options": {
+        "voiceId": "8f50c4c145e44ec280fb759b32934890",
+        "model": "s1"
+      },
+      "nota": "Caine — Fish S1 (calorosa profissional)",
+      "ok": true,
+      "file": "06-caine-fish.mp3",
+      "bytes": 472710,
+      "duracao_gen_s": 9.5
+    },
+    {
+      "label": "07-mulher-fish",
+      "provider": "fish",
+      "options": {
+        "voiceId": "302d4d27c9344460a815ee46efdd5cf0",
+        "model": "s1"
+      },
+      "nota": "Mulher — Fish S1 (publicitária, amigável)",
+      "ok": true,
+      "file": "07-mulher-fish.mp3",
+      "bytes": 487757,
+      "duracao_gen_s": 9.1
+    }
+  ]
+}

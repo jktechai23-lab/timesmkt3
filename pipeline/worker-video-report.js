@@ -18,6 +18,28 @@ function slugify(str) {
   return String(str || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
 }
 
+// Deriva o "assunto" do report a partir das fontes mais informativas.
+// Prioridade: research.subject/tema → audience → task_name humanizado → brand.
+function deriveReportSubject(research, taskName, brand) {
+  const fromResearch = research.subject || research.tema || research.campaign_topic || research.topic || '';
+  if (fromResearch && String(fromResearch).trim()) return String(fromResearch).trim();
+
+  const audience = research.target_audience || research.niche || research.publico_alvo || '';
+  if (audience && String(audience).trim()) return String(audience).trim();
+
+  // Humaniza task_name: c0099-dia_das_maes_2026 → "Dia das Mães 2026"
+  if (taskName) {
+    const cleaned = String(taskName).replace(/^c\d+[-_]/i, '').replace(/[_-]+/g, ' ').trim();
+    if (cleaned) {
+      return cleaned
+        .split(' ')
+        .map((w) => w.length > 3 ? w.charAt(0).toUpperCase() + w.slice(1) : w)
+        .join(' ');
+    }
+  }
+  return brand || 'a campanha';
+}
+
 /**
  * Generate report carousel + video from research data.
  * @param {object} opts - { projectRoot, outputDir, projectDir, taskName, stylePreset, videoAudio, narrator, ttsProvider, log }
@@ -68,6 +90,16 @@ async function generateReport(opts) {
   const brand = brandRaw ? brandRaw.toUpperCase() : 'INEMA';
   const brandUrl = `${brand}.CLUB`;
   const audience = research.target_audience || research.niche || '';
+
+  // ── Scene 0: Título do report — propósito do vídeo ─────────────────
+  const reportSubject = deriveReportSubject(research, taskName, brand);
+  scenes.push({
+    id: 'title_00', type: 'title', visual_type: 'text_card',
+    keyword: 'ANÁLISE DE CONEXÃO', duration: 4,
+    card_title: `Análise da Conexão Report com ${reportSubject}`,
+    card_body: `Estudo de mercado e oportunidades para ${brand}`,
+    narration: `Análise da conexão report com ${reportSubject}.`,
+  });
 
   // ── Scene 1: Hook — grab attention with the most impactful stat ────
   const topTrend = (r.trends)[0];
