@@ -7,10 +7,10 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const camp = 'c0038-pascoa_2026';
 const campDir = path.join(PROJECT_ROOT, 'prj/inema/outputs', camp);
 const imgsDir = path.join(campDir, 'imgs');
-const CHAT_ID = '7388953786';
+const CHAT_ID = getEnv('TELEGRAM_TEST_CHAT_ID', '');
 
 const botToken = getEnv('TELEGRAM_BOT_TOKEN', '');
-const PIRAMYD_KEYS = [...new Set([getEnv('PIRAMYD_API_KEY', ''), 'sk-150ad0f5c9ac42eb9928f44039cfc143', 'sk-574a5cb6547f4968b6fc435903ca97ac'].filter(Boolean))];
+const PIRAMYD_KEYS = [...new Set([getEnv('PIRAMYD_API_KEY', ''), getEnv('PIRAMYD_API_KEY_2', ''), getEnv('PIRAMYD_API_KEY_3', '')].filter(Boolean))];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 

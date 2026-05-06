@@ -51,10 +51,11 @@ async function sendPhoto(filePath, caption) {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // Piramyd API keys — multiple keys for higher throughput
+// Configure via env vars: PIRAMYD_API_KEY, PIRAMYD_API_KEY_2, PIRAMYD_API_KEY_3
 const PIRAMYD_KEYS = [
   getEnv('PIRAMYD_API_KEY', ''),
-  'sk-150ad0f5c9ac42eb9928f44039cfc143',
-  'sk-574a5cb6547f4968b6fc435903ca97ac',
+  getEnv('PIRAMYD_API_KEY_2', ''),
+  getEnv('PIRAMYD_API_KEY_3', ''),
 ].filter(Boolean);
 // Remove duplicates
 const uniquePiramydKeys = [...new Set(PIRAMYD_KEYS)];

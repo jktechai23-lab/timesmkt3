@@ -1,11 +1,23 @@
-# timesmkt3 v4.5
+# timesmkt3 / IMKT3
 
-**timesmkt3** — sistema de automacao de conteudo para marketing digital usando agentes de IA coordenados por um bot Telegram.
+**timesmkt3** — sistema de automação de conteúdo para marketing digital usando agentes de IA coordenados por um bot Telegram. A interface read-only (UI **IMKT3**) inspeciona campanhas e config sem tocar no pipeline.
 
-O sistema pesquisa, cria narrativa, gera imagens, produz videos, adapta copy para cada plataforma e publica — tudo automatizado com aprovacoes humanas em cada etapa.
+O sistema pesquisa, cria narrativa, gera imagens, produz vídeos, adapta copy para cada plataforma e publica — tudo automatizado com aprovações humanas em cada etapa.
+
+## Projetos irmãos
+
+| Repo | Função | UI |
+|---|---|---|
+| **timesmkt3** (este) | Bot Telegram + orchestrator + 5-stage pipeline + workers + UI IMKT3 (read-only) | `:5178` |
+| [**mkvideos**](https://github.com/inematds/mkvideos) (`~/projetos/mkvideos`) | Factory standalone de vídeos autorais (CriaProf, GERTRAN, DarkStory, Storytree, etc) | `:5278` |
+| inemaimg (daemon FastAPI) | Geração de imagem multi-modelo (FLUX/Qwen/ERNIE) | `:8000` |
+| Chatterbox (daemon TTS) | TTS local (rachel/bella) | `:7860` |
+| inemavox (proxy Freesound) | Library de música/SFX | `:8010` |
+
+Os vídeos autorais (criaprof, gertran, darkstory, storytree) **vivem agora em mkvideos**, não mais aqui. Este repo se concentra em **bot + orchestrator + workers + campanhas**.
 
 > **Visão geral do sistema (público)** → [`doc/sistema.md`](doc/sistema.md)
-> Arquitetura tecnica completa → [`CLAUDE.md`](CLAUDE.md)
+> Arquitetura técnica completa → [`CLAUDE.md`](CLAUDE.md)
 > Fluxo detalhado → [`doc/fluxo-pipeline-v4.md`](doc/fluxo-pipeline-v4.md)
 
 ---
@@ -299,50 +311,54 @@ Configuracao:
 timesmkt3/
 ├── prj/                             # Projetos (um por cliente/marca)
 │   └── <projeto>/
-│       ├── assets/                  # Fotos e midia da marca
+│       ├── assets/                  # Fotos e mídia da marca
 │       ├── imgs/                    # Imagens de campanha
 │       │   └── banners/             # Banners (nunca recortados)
 │       ├── knowledge/               # brand_identity.md, product_campaign.md, platform_guidelines.md
 │       └── outputs/
-│           └── <campanha>/
+│           └── <campanha>/          # ← Campanhas (visíveis na UI IMKT3 :5178)
 │               ├── creative/        # creative_brief.json/.md
 │               ├── copy/            # narrative.json/.md
 │               ├── ads/             # layout.json, HTMLs, PNGs
 │               ├── video/           # scene plans, MP4s
 │               ├── platforms/       # instagram.json, youtube.json, etc.
-│               ├── audio/           # narracoes geradas
+│               ├── audio/           # narrações geradas
 │               ├── imgs/            # imagens geradas via API
 │               ├── logs/            # log por agente
-│               ├── media_urls.json  # URLs publicas do Supabase
-│               └── Publish *.md     # guia de publicacao
+│               ├── media_urls.json  # URLs públicas do Supabase
+│               └── Publish *.md     # guia de publicação
 │
-├── pipeline/
+├── pipeline/                        # Orchestrator + workers do bot
 │   ├── orchestrator.js              # Enfileira jobs no BullMQ (5 stages)
 │   ├── worker.js                    # Executa agentes via Claude CLI
-│   ├── render-video-ffmpeg.js       # Renderiza video com ffmpeg
-│   ├── render-video.js              # Renderiza video com Remotion (qualidade profissional)
-│   ├── generate-image-kie.js        # Geracao de imagens via KIE API
-│   ├── generate-image-pollinations.js # Geracao de imagens via Pollinations
-│   ├── generate-audio.js            # Narracao via ElevenLabs
+│   ├── worker-{ad-creative,video-pro,video-gatilhos,video-report}.js
+│   ├── render-video-ffmpeg.js       # Renderiza vídeo com ffmpeg
+│   ├── render-video.js              # Renderiza vídeo com Remotion
+│   ├── generate-image-{kie,pollinations,inemaimg,piramyd}.js
+│   ├── render-slide-png.js          # HTML → PNG via Playwright
 │   ├── supabase-upload.js           # Upload para Supabase Storage
-│   ├── publish_now.js               # Publicacao generica em todas as plataformas
-│   ├── queues.js / redis.js         # Configuracao BullMQ + Redis
+│   ├── publish_now.js               # Publicação genérica em todas as plataformas
+│   ├── queues.js / redis.js         # Configuração BullMQ + Redis
 │   └── payloads/                    # JSONs de campanha de exemplo
 │
 ├── telegram/
-│   ├── bot.js                       # Comandos, fluxo, aprovacoes
-│   ├── session.js                   # Sessao por chat
-│   ├── formatter.js                 # Formatacao de mensagens
-│   ├── media.js                     # Envio de midia
-│   └── config.js                    # Configuracao
+│   ├── bot.js                       # Comandos, fluxo, aprovações
+│   ├── session.js                   # Sessão por chat
+│   ├── formatter.js, media.js, config.js
+│
+├── ui/                              # UI IMKT3 read-only (porta 5178)
+│   ├── server.js                    # /api/campaigns + /api/config
+│   └── public/{index.html, app.js, styles.css}
 │
 ├── skills/                          # Specs dos agentes (SKILL.md cada)
-├── media/                           # Modulo multi-provider
+├── media/                           # Módulo multi-provider (TTS/SFX/música helpers + voice-refs)
 ├── remotion-ad/                     # Projeto Remotion
-├── doc/                             # Documentacao
-├── .env.example                     # Template de variaveis
-└── CLAUDE.md                        # Documentacao tecnica da arquitetura
+├── doc/                             # Documentação
+├── .env.example                     # Template de variáveis
+└── CLAUDE.md                        # Documentação técnica da arquitetura
 ```
+
+**Nota:** `prj/inema/videos/` (vídeos autorais) **não fica mais aqui** — migrou pra `~/projetos/mkvideos/output/videos/`.
 
 ---
 
@@ -480,27 +496,34 @@ fonte brand
 
 ---
 
-## UI read-only (browser)
+## UI IMKT3 (browser, read-only)
 
-Painel web isolado para inspecionar campanhas e config sem tocar no pipeline. **Não roda nada, não edita nada** — só lê arquivos.
+Painel web isolado para inspecionar **campanhas** e **config** sem tocar no pipeline. **Não roda nada, não edita nada** — só lê arquivos.
 
 ```bash
 npm run ui                                  # http://0.0.0.0:5178 (LAN ok)
-TIMESMKT_UI_PORT=5180 npm run ui            # porta custom
+PORT=5180 npm run ui                        # porta custom
 TIMESMKT_UI_HOST=127.0.0.1 npm run ui       # restringir só ao localhost
 ```
+
+**Acesso:** `http://127.0.0.1:5178`
 
 **Endpoints (todos GET):**
 - `GET /` — interface
 - `GET /api/campaigns` — todas as campanhas em `prj/*/outputs/*` com payload, contagens, previews
 - `GET /api/config` — versão, deps, scripts, skills, knowledge files, head do `CLAUDE.md`
+- `GET /api/videos` — placeholder (vídeos autorais vivem em [mkvideos](http://127.0.0.1:5278), não aqui)
 - `GET /file?path=<rel>` — serve arquivo dentro de `ROOT/` (whitelist de extensões)
 
-**Telas:**
-- **Campanhas** — grid de cards. Cada card mostra: brief da campanha, 4 thumbs de preview, contagens (ads/imgs/vídeos/logs), parâmetros agrupados visualmente (imagem · vídeo · distribuição · aprovação · skip), tags de plataforma/template, atualização. Botões abrem modais com **todos os ads**, **todas as imgs**, **todos os vídeos** (player inline), `payload.json`, `Publish*.md`, e `interactive_report.html` (nova aba).
-- **Config** — versão do projeto, dependências, scripts npm, lista de skills com 1ª linha do SKILL.md, knowledge md por projeto, head do `CLAUDE.md`.
+### 3 abas no sidebar
 
-**Filtros:** busca livre (nome / data / projeto) + dropdown de projeto.
+| Aba | Função | Default |
+|---|---|---|
+| **Campanhas** | Grid de cards das campanhas (uma por `prj/<projeto>/outputs/<campanha>_<date>/`). Cada card mostra brief, 4 thumbs preview, contadores ads/imgs/vídeos, parâmetros agrupados (imagem · vídeo · distribuição · aprovação · skip). Botões abrem modais com todos os ads, imgs, vídeos (player inline), `payload.json`, `Publish*.md`, e `interactive_report.html`. | ✅ ativa |
+| **Config** | Versão do projeto, dependências, scripts npm, lista de skills com 1ª linha do SKILL.md, knowledge md por projeto, head do `CLAUDE.md`. | |
+| **Help** | Documentação inline da UI: o que cada aba faz, paths usados, link pra mkvideos `:5278`, lista de comandos `npm run *`. | |
+
+**Filtros (topo):** busca livre (nome / data / projeto) + dropdown de projeto.
 
 **Garantias de isolamento:**
 - Zero deps externas (só `http`, `fs`, `path` do Node)
@@ -509,86 +532,26 @@ TIMESMKT_UI_HOST=127.0.0.1 npm run ui       # restringir só ao localhost
 - `safeResolve` bloqueia path traversal
 - Whitelist de extensões em `/file` (img/vídeo/json/md/log/etc)
 
-Arquivos: `ui/server.js`, `ui/public/{index.html,app.js,styles.css}`. Apagar `ui/` + remover o script `ui` do `package.json` zera 100% do recurso.
+Arquivos: `ui/server.js`, `ui/public/{index.html, app.js, styles.css}`. Apagar `ui/` + remover o script `ui` do `package.json` zera 100% do recurso.
 
 ---
 
-## Templates Standalone (Factory CLI)
+## Templates Standalone (Factory CLI) — agora em mkvideos
 
-Vídeos autorais INEMA gerados via scripts CLI dedicados — **não passam pelo bot/pipeline**. Rodam diretos no terminal e usam config própria em `config/profissoes-30.js` (90 profissões cadastradas).
+Os vídeos autorais (CriaProf, GERTRAN, DarkStory, Storytree, CriaProf-CTA, Comic-A) **migraram pra `~/projetos/mkvideos/`** em 2026-05-06. Não vivem mais aqui.
 
-| Template | Script render | Formato | Duração | Mensagem |
-|---|---|---|---|---|
-| **CriaProf** | `render-criaprof.js <slug>` | 1:1 1080×1080 | 45s | Jornada infância → profissional ("desde criança ela sabia") |
-| **GERTRAN** | `render-gertran.js <slug>` | 9:16 1080×1920 | 31s | "Você sempre se adaptou. Faça de novo com IA." (público 35+) |
-| **CriaProf-CTA** | `render-criaprof-cta-916.js <slug> <prof\|generic>` | 9:16 1080×1920 | 37s | Hook forte 0-3s + jornada + CTA pesado 33-37s |
-
-### Como rodar
-
-**Uma profissão (ambos templates antigos):**
+Para gerar vídeo autoral:
 ```bash
-node batch-profissoes.js fisioterapeuta
-```
-Pipeline completo (~3.4 min): gen imgs (50 CriaProf + 20 nostalgia GERTRAN) → TTS Chatterbox bella → Whisper word-level → render dos 2 vídeos.
-
-**Lote (criaprof + gertran):**
-```bash
-node batch-profissoes.js all                    # todas 90
-node batch-profissoes.js new                    # só faltantes
-node batch-profissoes.js fisio,medica,dentista  # CSV
+cd ~/projetos/mkvideos
+node gen-criaprof.js <slug>
+node gen-gertran-nostalgia.js <slug>
+node gen-storytree-happy.js
+# etc.
 ```
 
-**CriaProf-CTA (3º template, 9:16 com hook + CTA):**
-```bash
-node batch-criaprof-cta.js <slug>              # gera ambas variantes (prof + generic)
-node batch-criaprof-cta.js all                 # 90 × 2 = 180 vídeos
-```
-Variantes:
-- `prof` — hook customizado por profissão (`FISIOTERAPIA / MUDOU. E AGORA?`)
-- `generic` — hook genérico (`SUA PROFISSÃO / MUDOU. E AGORA?`)
+Ver vídeos gerados: `http://127.0.0.1:5278` (UI mkvideos).
 
-Reaproveita as 50 imgs CriaProf existentes; gera narração nova com prefix `"A {profissão} mudou. E agora?"` entrando forte em t=0.
-
-**CriaProf-CTA com A/B testing narrativo (v1-v5):**
-```bash
-# Gerar TTS + whisper para uma profissão em 5 estilos × 2 variantes
-node gen-narrations-multi.js fisioterapeuta
-
-# Renderizar versão específica
-node render-criaprof-cta-916.js fisioterapeuta prof 3
-# → prj/inema/videos/criaprof-cta-916/.../fisioterapeuta-cta-prof-v3-32s.mp4
-```
-
-6 estilos narrativos para audience self-select — o hook é sempre `"{PROFISSÃO} MUDOU. E AGORA?"`:
-
-| Versão | Estilo | Abertura | Trilha |
-|---|---|---|---|
-| v0 | Original cronológica | narração padrão criaprof | pad ambient (freesound 569920) |
-| v1 | Memória nostálgica | "Você lembra quando tudo era manual?" | violão fingerpicking acústico (CC0) |
-| v2 | Confidente conversacional | "Lembra como tudo era diferente quando você começou?" | lo-fi jazz warm (CC0) |
-| v3 | Provocação direta | "Pensa rápido: quantas vezes essa profissão mudou?" | percussão cinematic build (CC-BY) |
-| v4 | Intimista contagem | "Você consegue lembrar quantas vezes essa profissão se reinventou?" | orchestral warm strings (CC-BY) |
-| v5 | Revelação | "E se eu te disser que você já viveu isso antes?" | bgm_v1 cinematográfico |
-
-As narrações v1-v5 são geradas via template engine por categoria de profissão (`config/profissoes-narrations-multi.js` — `getNarration(slug, version)`). A trilha muda automaticamente por versão via `getMusicForVariantAndVersion(variant, version)`.
-
-Nomenclatura dos arquivos com versão: `<slug>-cta-<variant>-v<N>-<dur>s.mp4`.
-Distribuição planejada: YouTube Shorts — audience self-select por estilo de narrativa.
-
-### Outputs
-
-```
-prj/inema/videos/criaprof/<slug>_<date>/video/<slug>-30s.mp4
-prj/inema/videos/gertran/<slug>_<date>/video/gertran-<slug>-31s.mp4
-prj/inema/videos/criaprof-cta-916/<slug>_<date>/video/<slug>-cta-{prof|generic}-37s.mp4
-prj/inema/videos/criaprof-cta-916/<slug>_<date>/video/<slug>-cta-{prof|generic}-v{1-5}-<dur>s.mp4
-```
-
-### Adicionar nova profissão
-
-Editar `config/profissoes-30.js` (ou `profissoes-extras.js` / `profissoes-extras-3.js`) com slug + character + props + narrações + hook + nostalgia. Para CTA-916, adicionar mapping em `config/profissoes-cta.js` (`noun` + `prefix`).
-
-> **Estes templates não estão integrados ao bot Telegram.** Para vídeos via bot use o pipeline normal (`/campanha`) com `worker-video-quick.js` / `worker-video-pro.js`.
+> **Para vídeos via bot Telegram** (campanhas), continue usando `/campanha` neste repo — o pipeline 5-stages roda `worker-video-quick.js` / `worker-video-pro.js` automaticamente.
 
 ---
 

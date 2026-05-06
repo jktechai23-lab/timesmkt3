@@ -38,3 +38,6 @@ prj/**/logs/
 remotion-ad/public/audio/
 remotion-ad/public/assets/
 tavily_results*.json
+
+# Logs locais (não versionar)
+logs/
