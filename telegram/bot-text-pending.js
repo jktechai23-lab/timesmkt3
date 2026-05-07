@@ -384,6 +384,20 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
     await ctx.reply(`Enfileirando <b>${campaignFolder}</b>: ${label}...`, { parse_mode: 'HTML' }).catch(() => {});
 
     const absOutDir = path.resolve(projectRoot, payload.output_dir);
+
+    // Garante chat_context.json + campaign_payload.json — necessários pro
+    // monitor identificar a campanha (linha 33-34 do bot-monitor.js exige
+    // chat_context.json pra saber o chatId e fazer auto-approve).
+    fs.mkdirSync(absOutDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(absOutDir, 'chat_context.json'),
+      JSON.stringify({ chatId: String(chatId), ts: Date.now() }),
+    );
+    fs.writeFileSync(
+      path.join(absOutDir, 'campaign_payload.json'),
+      JSON.stringify(payload, null, 2),
+    );
+
     if (payload.cleanFlags) {
       if (payload.cleanFlags.plan) {
         const videoDir = path.join(absOutDir, 'video');
