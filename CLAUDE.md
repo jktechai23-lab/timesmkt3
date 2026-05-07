@@ -24,6 +24,21 @@ Sempre atualizar a versão no topo deste arquivo e no `package.json`.
 
 ---
 
+## Limitações ativas (não publicamos hoje)
+
+**Stages 4 (plataformas) e 5 (distribuição) estão DESABILITADAS** globalmente. O sistema gera conteúdo até o vídeo (stage 3) e para — não posta nada nas redes nem faz upload pro Supabase.
+
+| Bloqueio | Onde | Como reverter |
+|---|---|---|
+| Auto-advance do monitor para após stage 3 | `telegram/bot-monitor.js` — `MAX_AUTO_STAGE = 3` | Trocar pra `5` |
+| `enqueueStage` recusa agentes de stage 4/5 | `pipeline/orchestrator.js` — `DISABLED_AGENTS` Set | Esvaziar o Set |
+
+Comandos como `/rerun cXX plataformas` ou `/rerun cXX distribuicao` **não rodam** mesmo se chamados — orchestrator filtra os agentes bloqueados antes de enfileirar.
+
+Quando voltar a publicar, mudar os 2 lugares acima.
+
+---
+
 ## Estrutura de projetos
 
 Projetos ficam em `prj/<slug>/` com `assets/`, `knowledge/`, `outputs/`. Todo payload precisa incluir `project_dir` (ex: `"project_dir": "prj/coldbrew-coffee-co"`).

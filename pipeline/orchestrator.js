@@ -706,7 +706,23 @@ async function enqueueJobs(payload) {
  * @param {object} payload - full campaign payload
  * @param {string[]} agentNames - list of agent names to enqueue (from STAGES)
  */
+// Guard: stages 4 (plataformas) e 5 (distribuição) estão desabilitadas globalmente
+// porque o sistema atual não publica. Bloqueia qualquer caminho que tente enfileirar
+// agentes dessas stages — auto-advance do monitor, /rerun manual, /loterun, CLI.
+// Pra reabilitar quando voltarmos a publicar, esvaziar este Set.
+const DISABLED_AGENTS = new Set([...PLATFORM_AGENTS, 'distribution_agent']);
+
 async function enqueueStage(payload, agentNames) {
+  const blocked = agentNames.filter(a => DISABLED_AGENTS.has(a));
+  if (blocked.length) {
+    console.log(`  [orchestrator] BLOCKED stages 4/5 agents: ${blocked.join(', ')} (sistema sem publicação)`);
+    agentNames = agentNames.filter(a => !DISABLED_AGENTS.has(a));
+    if (agentNames.length === 0) {
+      console.log('  [orchestrator] No remaining agents — skipping enqueue');
+      return [];
+    }
+  }
+
   const {
     task_name,
     task_date,

@@ -23,6 +23,11 @@ function startContinuousMonitor(deps) {
   // FAILED antigos. Filtramos por timestamp da linha do log (5min de margem).
   const monitorStartedAt = Date.now();
 
+  // Não avançamos automaticamente além desse stage. 3 = vídeo (último útil hoje,
+  // já que não publicamos). Stages 4 (plataformas) e 5 (distribuição) ficam
+  // desabilitadas pelo auto-advance. Pra publicar de verdade, troque pra 5.
+  const MAX_AUTO_STAGE = 3;
+
   return setInterval(async () => {
     const prjRoot = path.resolve(projectRoot, 'prj');
     if (!fs.existsSync(prjRoot)) return;
@@ -380,7 +385,17 @@ function startContinuousMonitor(deps) {
           }
 
           const approvalMode = cv.payload?.approval_modes?.[`stage${num}`] || 'auto';
-          if (num < 5) {
+          if (num >= MAX_AUTO_STAGE) {
+            if (num === MAX_AUTO_STAGE) {
+              const taskName = sess.runningTask?.taskName || campaign;
+              console.log(`[monitor] Stage ${num} done — stopping (MAX_AUTO_STAGE=${MAX_AUTO_STAGE}, no plataformas/distribuição)`);
+              if (cv.notifications !== false) {
+                bot.api.sendMessage(chatId, `🎬 Campanha <b>${taskName}</b> finalizada (vídeo OK). Plataformas e distribuição desabilitadas.`, { parse_mode: 'HTML' }).catch(() => {});
+              }
+              session.clearRunningTask(chatId);
+              session.clearCampaignV3(chatId);
+            }
+          } else if (num < 5) {
             if (approvalMode === 'auto') {
               const nextStage = num + 1;
               const nextAgents = stages[`stage${nextStage}`];
