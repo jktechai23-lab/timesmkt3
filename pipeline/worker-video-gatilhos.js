@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { renderSlidePNG, resolvePreset, closeBrowser } = require('./render-slide-png');
+const { rewritePainTrend } = require('./consumer-voice-rewriter');
 
 function slugify(str) {
   return String(str || '').toLowerCase()
@@ -73,6 +74,8 @@ async function generateGatilhos(opts) {
     videoAudio = 'narration', // 'narration' | 'none' | 'music'
     narrator = 'rachel',
     ttsProvider = 'auto',
+    consumerRewrite = true,    // Layer B fallback: reescreve pain/trend pro ângulo do consumidor
+    consumerPersona = '',       // ex: "filho adulto homenageando mãe", "gestor de PME"
     log,
   } = opts;
 
@@ -242,13 +245,36 @@ async function generateGatilhos(opts) {
 
     // Match hook to a related pain point (cycle through available)
     const pain = pains[hi % pains.length] || {};
-    const painText = findProp(pain, 'pain_point', 'dor', 'motivation', 'motivacao', 'titulo', 'title');
-    const painTrigger = findProp(pain, 'emotional_trigger', 'gatilho_emocional', 'description', 'descricao', 'desejo');
-
     // Match hook to a related data point (cycle through available)
     const trend = trends[hi % trends.length] || {};
-    const trendText = findProp(trend, 'trend', 'tendencia', 'titulo', 'title');
-    const trendDetail = findProp(trend, 'detail', 'descricao', 'description', 'detalhe');
+
+    // ── Consumer voice transformation (Layer A or B) ──────────────────
+    // Layer A: research already produced consumer_voice fields → use direct
+    // Layer B: consumerRewrite=true → call claude -p to rewrite pain/trend in consumer angle
+    // Layer C: consumerRewrite=false → fall back to raw analytical text (legacy behavior)
+    let painCard, painBody, trendCard, trendBody;
+    if (consumerRewrite) {
+      const cv = await rewritePainTrend({
+        hook: h.hook,
+        pain,
+        trend,
+        persona: consumerPersona,
+        ctaBrand,
+        log: (m) => log(outputDir, 'video_pro', `  ${m}`),
+      });
+      painCard = cv.painCard;
+      painBody = cv.painBody;
+      trendCard = cv.trendCard;
+      trendBody = cv.trendBody;
+      if (cv.source !== 'fallback') {
+        log(outputDir, 'video_pro', `  Consumer voice (${cv.source}): pain="${painCard.slice(0, 40)}..."`);
+      }
+    } else {
+      painCard = findProp(pain, 'pain_point', 'dor', 'motivation', 'motivacao', 'titulo', 'title');
+      painBody = findProp(pain, 'emotional_trigger', 'gatilho_emocional', 'description', 'descricao', 'desejo');
+      trendCard = findProp(trend, 'trend', 'tendencia', 'titulo', 'title');
+      trendBody = findProp(trend, 'detail', 'descricao', 'description', 'detalhe');
+    }
 
     // Extract a keyword from the hook (first 2-3 impactful words)
     const hookWords = h.hook.split(/\s+/).filter(w => w.length > 3).slice(0, 2).join(' ').toUpperCase() || 'ATENÇÃO';
@@ -263,22 +289,22 @@ async function generateGatilhos(opts) {
         card_body: '',
         narration: '',
       },
-      // Scene 2: PROBLEMA — a dor que o hook endereça
+      // Scene 2: PROBLEMA — a dor que o hook endereça (consumer voice)
       {
         id: 'problema', type: 'problem', visual_type: 'text_card',
-        keyword: painText ? painText.split(' ').slice(0, 2).join(' ').toUpperCase() : 'O PROBLEMA',
+        keyword: painCard ? painCard.split(' ').filter(w => w.length > 3).slice(0, 2).join(' ').toUpperCase() : 'PRA VOCÊ',
         duration: 5,
-        card_title: painText.slice(0, 60) || 'O mercado mudou.',
-        card_body: painTrigger.slice(0, 100) || '',
+        card_title: painCard.slice(0, 60) || 'Você sente isso também.',
+        card_body: painBody.slice(0, 100) || '',
         narration: '',
       },
-      // Scene 3: PROVA — dado que sustenta (do research trends)
+      // Scene 3: PROVA — o que o dado significa pra você (consumer voice)
       {
-        id: 'prova', type: 'data', visual_type: trendText ? 'text_card' : 'photo',
-        keyword: 'OS DADOS',
+        id: 'prova', type: 'data', visual_type: trendCard ? 'text_card' : 'photo',
+        keyword: 'PRA VOCÊ',
         duration: 5,
-        card_title: trendText.slice(0, 60) || '',
-        card_body: trendDetail.slice(0, 100) || '',
+        card_title: trendCard.slice(0, 60) || '',
+        card_body: trendBody.slice(0, 100) || '',
         narration: '',
       },
       // Scene 4: CTA — marca + ação clara
@@ -304,18 +330,18 @@ async function generateGatilhos(opts) {
     let hookNarrationFile = null;
 
     if (wantsNarration) {
-      // Build narration: hook text + pain + trend (short, <30s spoken)
+      // Build narration: hook text + pain + trend (consumer voice, <30s spoken)
       const scriptParts = [
         h.hook,
-        painText ? painText : '',
-        trendText ? trendText.slice(0, 80) : '',
+        painCard || '',
+        trendCard ? trendCard.slice(0, 80) : '',
         `Acesse ${ctaBrand}.`,
       ].filter((p) => p && p.trim().length > 0).map((p) => p.trim());
 
-      // Set narration text per scene
+      // Set narration text per scene (consumer voice)
       scenes[0].narration = h.hook;
-      scenes[1].narration = painText || painTrigger || '';
-      scenes[2].narration = trendText.slice(0, 80) || '';
+      scenes[1].narration = painCard || painBody || '';
+      scenes[2].narration = (trendCard || '').slice(0, 80);
       scenes[3].narration = `Acesse ${ctaBrand}.`;
       scenes[4].narration = '';
 

@@ -92,6 +92,8 @@ function createWorkerVideoProHandler({
           videoAudio: job.data.video_audio || 'narration',
           narrator: job.data.narrator || 'rachel',
           ttsProvider: job.data.tts_provider || 'auto',
+          consumerRewrite: job.data.consumer_rewrite !== false,
+          consumerPersona: job.data.consumer_persona || job.data.target_audience || '',
           log,
         });
         log(output_dir, 'video_pro', `Report complete: ${result.carousels} carousels, video: ${result.video ? 'yes' : 'no'}`);
@@ -126,6 +128,8 @@ function createWorkerVideoProHandler({
           ttsProvider: job.data.tts_provider || 'auto',
           ctaBrand,
           ctaAction: 'Acesse grátis',
+          consumerRewrite: job.data.consumer_rewrite !== false,
+          consumerPersona: job.data.consumer_persona || job.data.target_audience || '',
           log,
         });
         log(output_dir, 'video_pro', `Gatilhos complete: ${result.completed}/${result.count} hooks rendered`);

@@ -46,5 +46,18 @@ module.exports = {
         PYTHONUNBUFFERED: '1',
       },
     },
+    {
+      name: 'ui',
+      script: 'ui/server.js',
+      cwd: '/home/nmaldaner/projetos/timesmkt3',
+      autorestart: true,
+      watch: false,
+      max_restarts: 10,
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        PORT: '5178',
+      },
+    },
   ],
 };

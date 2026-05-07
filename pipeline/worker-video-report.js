@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { renderSlidePNG, renderAllSlides, resolvePreset, closeBrowser } = require('./render-slide-png');
+const { rewritePainTrend } = require('./consumer-voice-rewriter');
 
 function slugify(str) {
   return String(str || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
@@ -51,6 +52,8 @@ async function generateReport(opts) {
     videoAudio = 'narration', // 'narration' | 'none' | 'music'
     narrator = 'rachel',
     ttsProvider = 'auto',
+    consumerRewrite = true,    // reescreve pain/trend pro ângulo do consumidor (usa research consumer_voice se houver, senão claude -p)
+    consumerPersona = '',       // ex: "filho adulto homenageando mãe", "gestor de PME"
     log,
   } = opts;
 
@@ -91,8 +94,47 @@ async function generateReport(opts) {
   const brandUrl = `${brand}.CLUB`;
   const audience = research.target_audience || research.niche || '';
 
+  // ── Consumer voice rewrite (Layer A or B) ─────────────────────────
+  // Reescreve top pain + second pain + top trend pro ângulo do cliente final.
+  // Usa o título do report como "hook" pra dar contexto à reescrita.
+  const reportSubject0 = deriveReportSubject(research, taskName, brand);
+  const topTrendRaw = (r.trends)[0] || {};
+  const topPainRaw = (r.pains)[0] || {};
+  const secondPainRaw = (r.pains)[1] || {};
+
+  let cv1 = null;
+  let cv2 = null;
+  if (consumerRewrite) {
+    const heroHook = topTrendRaw.trend || topTrendRaw.tendencia ||
+      `Você quer entender o que está acontecendo em ${reportSubject0}.`;
+
+    cv1 = await rewritePainTrend({
+      hook: heroHook,
+      pain: topPainRaw,
+      trend: topTrendRaw,
+      persona: consumerPersona,
+      ctaBrand: `${brand}.CLUB`,
+      log: (m) => log(outputDir, 'video_pro', `  ${m}`),
+    });
+
+    if (secondPainRaw && Object.keys(secondPainRaw).length > 0) {
+      cv2 = await rewritePainTrend({
+        hook: heroHook,
+        pain: secondPainRaw,
+        trend: topTrendRaw,
+        persona: consumerPersona,
+        ctaBrand: `${brand}.CLUB`,
+        log: (m) => log(outputDir, 'video_pro', `  ${m}`),
+      });
+    }
+
+    if (cv1 && cv1.source !== 'fallback') {
+      log(outputDir, 'video_pro', `  Report consumer voice (${cv1.source}): trend="${cv1.trendCard.slice(0, 40)}..." pain="${cv1.painCard.slice(0, 40)}..."`);
+    }
+  }
+
   // ── Scene 0: Título do report — propósito do vídeo ─────────────────
-  const reportSubject = deriveReportSubject(research, taskName, brand);
+  const reportSubject = reportSubject0;
   scenes.push({
     id: 'title_00', type: 'title', visual_type: 'text_card',
     keyword: 'ANÁLISE DE CONEXÃO', duration: 4,
@@ -101,9 +143,11 @@ async function generateReport(opts) {
     narration: `Análise da conexão report com ${reportSubject}.`,
   });
 
-  // ── Scene 1: Hook — grab attention with the most impactful stat ────
-  const topTrend = (r.trends)[0];
-  const hookText = topTrend?.trend || topTrend?.tendencia || 'O mercado mudou. Você está preparado?';
+  // ── Scene 1: Hook — grab attention with consumer-voice trend ───────
+  const topTrend = topTrendRaw;
+  const hookText = (cv1?.trendCard) ||
+    topTrend?.trend || topTrend?.tendencia ||
+    'Algo mudou. E talvez você já tenha sentido.';
   scenes.push({
     id: 'hook_01', type: 'hook', visual_type: 'text_card',
     keyword: 'VOCÊ SABIA?', duration: 3,
@@ -112,14 +156,16 @@ async function generateReport(opts) {
     narration: hookText,
   });
 
-  // ── Scene 2: The real problem — pain point that resonates ──────────
-  const topPain = (r.pains)[0];
-  if (topPain) {
-    const painTitle = topPain.pain_point || topPain.dor || topPain.motivation || topPain.motivacao || '';
-    const painBody = topPain.description || topPain.descricao || topPain.emotional_trigger || topPain.gatilho_emocional || '';
+  // ── Scene 2: The real problem — consumer-voice pain ────────────────
+  const topPain = topPainRaw;
+  if (topPain && Object.keys(topPain).length > 0) {
+    const painTitle = (cv1?.painCard) ||
+      topPain.pain_point || topPain.dor || topPain.motivation || topPain.motivacao || '';
+    const painBody = (cv1?.painBody) ||
+      topPain.description || topPain.descricao || topPain.emotional_trigger || topPain.gatilho_emocional || '';
     scenes.push({
       id: 'problem_01', type: 'problem', visual_type: 'text_card',
-      keyword: 'O DESAFIO', duration: 6,
+      keyword: 'PRA VOCÊ', duration: 6,
       card_title: painTitle,
       card_body: painBody,
       narration: `${painTitle}. ${painBody}`,
@@ -142,14 +188,16 @@ async function generateReport(opts) {
     });
   }
 
-  // ── Scene 4: More pain — what's at stake ───────────────────────────
-  const secondPain = (r.pains)[1];
-  if (secondPain) {
-    const painTitle = secondPain.pain_point || secondPain.dor || secondPain.motivation || '';
-    const trigger = secondPain.emotional_trigger || secondPain.gatilho_emocional || secondPain.description || secondPain.descricao || '';
+  // ── Scene 4: More pain — consumer-voice ───────────────────────────
+  const secondPain = secondPainRaw;
+  if (secondPain && Object.keys(secondPain).length > 0) {
+    const painTitle = (cv2?.painCard) ||
+      secondPain.pain_point || secondPain.dor || secondPain.motivation || '';
+    const trigger = (cv2?.painBody) ||
+      secondPain.emotional_trigger || secondPain.gatilho_emocional || secondPain.description || secondPain.descricao || '';
     scenes.push({
       id: 'stake_01', type: 'problem', visual_type: 'text_card',
-      keyword: 'O QUE ESTÁ EM JOGO', duration: 6,
+      keyword: 'O QUE MUDA PRA VOCÊ', duration: 6,
       card_title: painTitle,
       card_body: trigger,
       narration: `${painTitle}. ${trigger}`,

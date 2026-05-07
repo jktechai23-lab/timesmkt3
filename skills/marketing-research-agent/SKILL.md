@@ -88,6 +88,26 @@ After reading the raw results, act as an expert marketer to synthesize the findi
 - **Video Concepts** — Specific short-form video plans (title, hook, format, platform, duration).
 - **Ad Hooks** — Scroll-stopping opening lines.
 
+### CRITICAL: Consumer Voice Layer
+
+The fields above are the analytical layer (intended for the marketing decision-maker). Downstream agents (gatilhos worker, report worker, video templates) need a parallel **consumer-facing layer** so the final ads/videos speak directly to the end customer of the campaign — not to the marketer who commissioned it.
+
+For **EVERY** entry in `consumer_motivations` and `industry_trends`, you MUST also add these fields:
+
+- `consumer_voice` — short headline (≤ 60 chars) in **2nd person, present tense**, addressing the consumer directly. NEVER use marketing jargon ("custo-benefício", "jornada híbrida", "consumidores escolhem...", "64% dos clientes"). Always use "você", emotional framing, and language a real human would say out loud.
+- `consumer_voice_subhead` — supporting line (≤ 110 chars) that elaborates without breaking the 2nd-person voice. Translate any data point into "what this means for you", not "what the market shows".
+
+#### Examples — bad vs good
+
+| Field type | ❌ Marketer voice | ✅ Consumer voice |
+|---|---|---|
+| pain_point | "Custo-benefício e planejamento" | "Você quer dar algo que dure, mas sem estourar o orçamento" |
+| emotional_trigger | "64% dos consumidores escolhem por preço" | "Esse ano você quer mostrar valor, não só preço" |
+| trend | "Jornada híbrida de consumo" | "Você pesquisa online, mas ainda quer sentir antes de comprar" |
+| trend detail | "Crescimento de 23% no segmento" | "Mais gente como você está fazendo essa escolha" |
+
+The `consumer_voice` field MUST be aligned with the campaign's target persona (filho que homenageia mãe, pai de primeira viagem, gestor de PME, etc — extract from `target_audience` if provided, or infer from the niche).
+
 ---
 
 ## Step 4: Generate Output Deliverables
@@ -96,6 +116,29 @@ Create a new directory in `<project_dir>/outputs/` named after the research topi
 
 ### 1. Structured JSON (`research_results.json`)
 Output the pure synthesized data in strict, valid JSON format. All arrays must contain at least 3 items, and `video_concepts` must contain at least 2 objects.
+
+**Required schema for `consumer_motivations[]` entries:**
+```json
+{
+  "pain_point": "<analytical label, e.g. 'Custo-benefício e planejamento'>",
+  "description": "<analytical description>",
+  "emotional_trigger": "<analytical trigger>",
+  "consumer_voice": "<2nd person headline, ≤ 60 chars>",
+  "consumer_voice_subhead": "<2nd person body, ≤ 110 chars>"
+}
+```
+
+**Required schema for `industry_trends[]` entries:**
+```json
+{
+  "trend": "<analytical label, e.g. 'Jornada híbrida de consumo'>",
+  "detail": "<analytical detail>",
+  "consumer_voice": "<2nd person headline, ≤ 60 chars>",
+  "consumer_voice_subhead": "<2nd person body, ≤ 110 chars>"
+}
+```
+
+The consumer_voice fields are NOT optional — downstream workers depend on them.
 
 ### 2. Markdown Brief (`research_brief.md`)
 Create a human-readable markdown brief summarizing the findings.
@@ -140,6 +183,9 @@ Before finalizing output, verify:
 - [ ] No IDE Web Search used; SDK Node.js script ran locally and read the `.env` manually.
 - [ ] A new subfolder was created inside `<project_dir>/outputs/`.
 - [ ] JSON is valid machine-readable data.
+- [ ] **Every `consumer_motivations[]` entry has `consumer_voice` AND `consumer_voice_subhead` fields in 2nd person, no marketing jargon.**
+- [ ] **Every `industry_trends[]` entry has `consumer_voice` AND `consumer_voice_subhead` fields in 2nd person, translating data into consumer impact.**
+- [ ] consumer_voice fields are aligned with the campaign's target persona (not generic).
 - [ ] Interactive HTML features a custom styled scrollbar using the brand palette.
 - [ ] Interactive HTML features animated Chart.js graphs mapping the findings.
 - [ ] Markdown brief includes mermaid diagrams.
