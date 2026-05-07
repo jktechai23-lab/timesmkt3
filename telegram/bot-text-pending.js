@@ -398,6 +398,13 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
       JSON.stringify(payload, null, 2),
     );
 
+    // Remove archived.json se existir — rerun deve "des-arquivar" a campanha,
+    // senão monitor pula (linha 31 do bot-monitor.js).
+    const archivedFile = path.join(absOutDir, 'archived.json');
+    if (fs.existsSync(archivedFile)) {
+      fs.unlinkSync(archivedFile);
+    }
+
     if (payload.cleanFlags) {
       if (payload.cleanFlags.plan) {
         const videoDir = path.join(absOutDir, 'video');
