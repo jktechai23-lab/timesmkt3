@@ -18,6 +18,11 @@ function startContinuousMonitor(deps) {
     stages,
   } = deps;
 
+  // Captura timestamp do startup pra filtrar falhas antigas em logs.
+  // Após restart do bot, monitoredSignals zera e o monitor poderia re-notificar
+  // FAILED antigos. Filtramos por timestamp da linha do log (5min de margem).
+  const monitorStartedAt = Date.now();
+
   return setInterval(async () => {
     const prjRoot = path.resolve(projectRoot, 'prj');
     if (!fs.existsSync(prjRoot)) return;
@@ -147,8 +152,18 @@ function startContinuousMonitor(deps) {
           if (monitoredSignals.has(signalKey) || !fs.existsSync(watcher.logFile)) continue;
           const content = fs.readFileSync(watcher.logFile, 'utf-8');
           if (!content.includes(watcher.marker)) continue;
-          monitoredSignals.add(signalKey);
           const lastLine = content.split('\n').filter(Boolean).reverse().find((line) => line.includes(watcher.marker)) || watcher.marker;
+          // Filtra falhas anteriores ao startup do monitor (logs históricos não devem
+          // virar notificação após restart do bot). Margem de 5min pra log em vôo.
+          const tsMatch = lastLine.match(/^\[(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\]/);
+          if (tsMatch) {
+            const lineTs = Date.parse(tsMatch[1]);
+            if (Number.isFinite(lineTs) && lineTs < monitorStartedAt - 5 * 60 * 1000) {
+              monitoredSignals.add(signalKey); // marca pra não re-checar em loops futuros
+              continue;
+            }
+          }
+          monitoredSignals.add(signalKey);
           const details = lastLine.replace(/^.*FAILED:\s*/, '').slice(0, 700);
           bot.api.sendMessage(chatId, watcher.formatMessage(details), { parse_mode: 'HTML' })
             .catch((err) => console.error('[monitor] failure send failed:', err.message));
