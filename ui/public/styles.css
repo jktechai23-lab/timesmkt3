@@ -355,3 +355,18 @@ button, input, select { font: inherit; color: inherit; }
 .lb-prev:hover { transform: translateY(-50%) scale(1.05); }
 .lb-next:hover { transform: translateY(-50%) scale(1.05); }
 .lightbox.is-single .lb-prev, .lightbox.is-single .lb-next { display: none; }
+
+/* download buttons */
+.dl-zip {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dl-zip:hover { background: var(--panel); border-color: var(--text-dim); }

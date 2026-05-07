@@ -235,6 +235,9 @@ function campaignCard(c) {
   if (c.files.payload) actions.push(`<button data-action="payload" data-path="${encodeURIComponent(c.files.payload)}" data-name="${escapeHtml(c.name)}">payload</button>`);
   if (c.files.publish) actions.push(`<button data-action="publish" data-path="${encodeURIComponent(c.files.publish)}" data-name="${escapeHtml(c.name)}">publish.md</button>`);
   if (c.files.report) actions.push(`<a href="/file?path=${encodeURIComponent(c.files.report)}" target="_blank" rel="noopener">ReportHTML</a>`);
+  if (c.imgs.length) actions.push(`<a class="dl-zip" href="/zip?campaign=${encodeURIComponent(c.id)}&kind=imgs" title="baixar imgs em zip">⬇ imgs.zip</a>`);
+  if (c.videos.length) actions.push(`<a class="dl-zip" href="/zip?campaign=${encodeURIComponent(c.id)}&kind=videos" title="baixar vídeos em zip">⬇ vídeos.zip</a>`);
+  if (c.gatilhos?.length) actions.push(`<a class="dl-zip" href="/zip?campaign=${encodeURIComponent(c.id)}&kind=gatilhos" title="baixar gatilhos em zip">⬇ gatilhos.zip</a>`);
 
   const briefBlock = c.brief
     ? `<p class="card-brief">${escapeHtml(c.brief)}</p>`

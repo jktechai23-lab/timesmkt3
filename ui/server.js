@@ -423,8 +423,61 @@ function serveFile(req, res, url) {
   if (!target || !tryStat(target)) { res.writeHead(404); res.end('not found'); return; }
   const ext = path.extname(target).toLowerCase();
   if (!SERVABLE.has(ext)) { res.writeHead(415); res.end('unsupported type'); return; }
-  res.writeHead(200, { 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': 'no-store' });
+  const headers = { 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': 'no-store' };
+  if (url.searchParams.get('download')) {
+    headers['content-disposition'] = `attachment; filename="${path.basename(target).replace(/"/g, '')}"`;
+  }
+  res.writeHead(200, headers);
   fs.createReadStream(target).pipe(res);
+}
+
+function serveZip(req, res, url) {
+  const campaign = url.searchParams.get('campaign') || '';
+  const kind = url.searchParams.get('kind') || '';
+  if (!/^[a-zA-Z0-9_\-]+\/[a-zA-Z0-9_\-]+$/.test(campaign)) {
+    res.writeHead(400); res.end('bad campaign'); return;
+  }
+  if (!['imgs', 'videos', 'gatilhos'].includes(kind)) {
+    res.writeHead(400); res.end('bad kind'); return;
+  }
+  const [proj, task] = campaign.split('/');
+  const campaignDir = safeResolve(PRJ_DIR, path.join(proj, 'outputs', task));
+  if (!campaignDir || !tryStat(campaignDir)) {
+    res.writeHead(404); res.end('campaign not found'); return;
+  }
+
+  let relFiles = [];
+  if (kind === 'imgs') {
+    const imgsDir = path.join(campaignDir, 'imgs');
+    relFiles = findFiles(imgsDir, (f) => IMG_EXT.has(path.extname(f).toLowerCase()), 500, 3)
+      .map((f) => path.relative(campaignDir, f));
+  } else if (kind === 'videos') {
+    const videoDir = path.join(campaignDir, 'video');
+    relFiles = findFiles(videoDir, (f) => VID_EXT.has(path.extname(f).toLowerCase()), 50, 3)
+      .map((f) => path.relative(campaignDir, f));
+  } else if (kind === 'gatilhos') {
+    const gatilhosDir = path.join(campaignDir, 'gatilhos');
+    relFiles = findFiles(gatilhosDir, (f) => VID_EXT.has(path.extname(f).toLowerCase()), 200, 3)
+      .map((f) => path.relative(campaignDir, f));
+  }
+
+  if (relFiles.length === 0) {
+    res.writeHead(404); res.end('no files found'); return;
+  }
+
+  const zipName = `${task}__${kind}.zip`;
+  res.writeHead(200, {
+    'content-type': 'application/zip',
+    'content-disposition': `attachment; filename="${zipName}"`,
+    'cache-control': 'no-store',
+  });
+
+  const { spawn } = require('child_process');
+  const zip = spawn('zip', ['-q', '-', ...relFiles], { cwd: campaignDir });
+  zip.stdout.pipe(res);
+  zip.stderr.on('data', (d) => console.error('[zip]', d.toString().trim()));
+  zip.on('error', () => { try { res.destroy(); } catch {} });
+  zip.on('close', (code) => { if (code !== 0) console.error(`[zip] exit ${code} for ${campaign}/${kind}`); });
 }
 
 function handleApi(req, res, url) {
@@ -440,6 +493,7 @@ const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || `${HOST}:${PORT}`}`);
     if (url.pathname.startsWith('/api/')) return handleApi(req, res, url);
     if (url.pathname === '/file') return serveFile(req, res, url);
+    if (url.pathname === '/zip') return serveZip(req, res, url);
     return serveStatic(req, res);
   } catch (err) {
     res.writeHead(500); res.end(String(err.message || err));
@@ -448,5 +502,5 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`mkvideos UI (read-only) → http://${HOST}:${PORT}`);
-  console.log(`  GET /api/campaigns  · GET /api/videos  · GET /api/config  · GET /file?path=...`);
+  console.log(`  GET /api/campaigns  · GET /api/videos  · GET /api/config  · GET /file?path=...&download=1  · GET /zip?campaign=proj/task&kind=imgs|videos|gatilhos`);
 });

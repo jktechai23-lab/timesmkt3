@@ -15,6 +15,7 @@ const { validateScenePlan } = require('./scene-plan-validator');
 const { renderAllSlides, resolvePreset, closeBrowser: closeSlideBrowser } = require('./render-slide-png');
 const { generateReport } = require('./worker-video-report');
 const { generateGatilhos } = require('./worker-video-gatilhos');
+const { sanitizeAdsImages } = require('./sanitize-scene-plan-ads');
 
 function shouldAllowEmptyOverlay(scene, plan, index) {
   const narration = String(scene?.narration || '').trim();
@@ -1117,6 +1118,26 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
       log(output_dir, 'video_pro', `Validation failed: ${message}`);
       process.stdout.write(`[STAGE3_VIDEO_PLAN_INVALID] ${output_dir} ${message}\n`);
       return { status: 'failed', reason: message };
+    }
+
+    // Sanitize: remove ads/ images do scene plan (LLM às vezes ignora a regra
+    // "NEVER use ads/" e aponta image: pra carrosseis com texto+logo embutido).
+    // Troca por imgs/ (round-robin) ou null se imgs/ vazia.
+    {
+      const absImgsDirSan = path.resolve(projectRoot, output_dir, 'imgs');
+      let totalReplaced = 0;
+      let totalNulled = 0;
+      for (let i = 1; i <= video_count; i++) {
+        const idx = String(i).padStart(2, '0');
+        const planPath = vfFind(idx, '_scene_plan_motion.json');
+        if (!fs.existsSync(planPath)) continue;
+        const r = sanitizeAdsImages(planPath, absImgsDirSan, (m) => log(output_dir, 'video_pro', m));
+        totalReplaced += r.replaced;
+        totalNulled += r.nulled;
+      }
+      if (totalReplaced || totalNulled) {
+        log(output_dir, 'video_pro', `Ads sanitization: ${totalReplaced} replaced w/ imgs/, ${totalNulled} nulled (solid bg)`);
+      }
     }
 
     if (image_source === 'solid') {
