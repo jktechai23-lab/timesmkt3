@@ -119,18 +119,38 @@ function escape(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function resolveRefImage(frame, board) {
+  if (!frame.phase || !board.phases) return null;
+  const refName = board.phases[frame.phase];
+  if (!refName) return null;
+  const refPath = path.join(path.dirname(IMGS_DIR), 'refs', refName);
+  return fs.existsSync(refPath) ? refPath : null;
+}
+
+function buildPrompt(frame, board) {
+  const parts = [];
+  if (board.character_template) parts.push(board.character_template);
+  const wardrobe = frame.wardrobe && board.wardrobes ? board.wardrobes[frame.wardrobe] : null;
+  if (wardrobe) parts.push(wardrobe);
+  parts.push(frame.prompt);
+  parts.push(board.style_base);
+  return parts.filter(Boolean).join('. ');
+}
+
 async function buildOne(frame, board, browser) {
   const idx = String(frame.n).padStart(2, '0');
   const imgPath = path.join(IMGS_DIR, `quadro_${idx}_${frame.id}.jpg`);
   const outPath = path.join(QUADROS_DIR, `quadro_${idx}_${frame.id}.png`);
 
-  // 1. Gera imagem limpa
+  // 1. Gera imagem limpa com subject_lock via reference image
   if (!fs.existsSync(imgPath)) {
-    const fullPrompt = `${frame.prompt}. ${board.style_base}`;
-    console.log(`[${idx}] generating: ${frame.prompt.slice(0, 60)}...`);
+    const fullPrompt = buildPrompt(frame, board);
+    const refImage = resolveRefImage(frame, board);
+    const refs = refImage ? [refImage] : [];
+    console.log(`[${idx}] generating phase=${frame.phase || '-'} wardrobe=${frame.wardrobe || '-'}: ${frame.prompt.slice(0, 50)}...`);
     const t0 = Date.now();
-    await generateImage(imgPath, fullPrompt, MODEL, board.format);
-    console.log(`[${idx}] image saved (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+    await generateImage(imgPath, fullPrompt, MODEL, board.format, refs);
+    console.log(`[${idx}] image saved (${((Date.now() - t0) / 1000).toFixed(1)}s)${refImage ? ' [ref-locked]' : ''}`);
     fs.writeFileSync(imgPath.replace(/\.[^.]+$/, '_prompt.txt'), fullPrompt);
   } else {
     console.log(`[${idx}] image exists, skipping gen`);
