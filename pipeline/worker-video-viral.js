@@ -176,8 +176,12 @@ async function generateViral(opts) {
     consumerPersona = '',
     musicEnabled = false,
     captionsEnabled = false,
+    videoTemplate = 'viral',  // 'viral' (default) | 'narrativo' | 'data_story' | 'brand_film' | 'explainer'
     log,
   } = opts;
+
+  // Resolve template: 'auto' → 'viral' (default do tipo)
+  const slideTemplate = (!videoTemplate || videoTemplate === 'auto') ? 'viral' : videoTemplate;
 
   const researchPath = path.resolve(projectRoot, outputDir, 'research_results.json');
   if (!fs.existsSync(researchPath)) {
@@ -188,7 +192,7 @@ async function generateViral(opts) {
   const viralDir = path.resolve(projectRoot, outputDir, 'viral');
   fs.mkdirSync(viralDir, { recursive: true });
 
-  log(outputDir, 'video_viral', `VIRAL V1: extracting hooks (music=${musicEnabled?'on':'off'}, caption=${captionsEnabled?'on':'off'})...`);
+  log(outputDir, 'video_viral', `VIRAL V1: extracting hooks (template=${slideTemplate}, music=${musicEnabled?'on':'off'}, caption=${captionsEnabled?'on':'off'})...`);
 
   // ── Fuzzy field resolver (espelha gatilhos worker) ──
   function findArray(obj, ...roots) {
@@ -501,7 +505,7 @@ async function generateViral(opts) {
       const slidePath = path.join(itemDir, `slide_${String(si + 1).padStart(2, '0')}.png`);
 
       try {
-        await renderSlidePNG(scene, preset, bgImage, 1080, 1920, slidePath, 'viral');
+        await renderSlidePNG(scene, preset, bgImage, 1080, 1920, slidePath, slideTemplate);
         scene.image = slidePath;
         scene._slide = true;
         scene.motion = { type: motionCycle[si % motionCycle.length], intensity: 'moderate' };
@@ -601,6 +605,7 @@ function createWorkerVideoViralHandler({ projectRoot, log, readBrandContext }) {
         consumerPersona: job.data.consumer_persona || job.data.target_audience || '',
         musicEnabled: music_enabled,
         captionsEnabled: captions_enabled,
+        videoTemplate: job.data.video_template || 'viral',
         ctaBrand,
         ctaAction: job.data.cta_action || 'Acesse grátis',
         log,

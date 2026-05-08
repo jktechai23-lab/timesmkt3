@@ -181,12 +181,16 @@ Tipo paralelo a Quick e Pro — pegada Reels/TikTok. Diferenças do gatilho/repo
 |---|---|---|---|
 | `music_enabled: true` | `musica` ou `music` | OFF | Trilha de fundo com ducking sob narração (volume 0.12) |
 | `captions_enabled: true` | `caption` ou `legenda` | OFF | Captions baked nos slides (V1) — V2: word-by-word ASS karaoke |
+| `video_template: <nome>` | token do template (`data_story`, `narrativo`, `brand_film`, `explainer`) | `viral` | Estilo visual dos slides — combina com qualquer tipo |
 
 Sintaxe:
 ```
-/loterun c99 video viral                       → cru (só narração + bg)
+/loterun c99 video viral                       → cru (só narração + bg, template viral default)
 /loterun c99 video viral musica caption        → com música + captions
+/loterun c99 video viral data_story            → slides chart-heavy estilo data_story
+/loterun c99 video viral brand_film            → slides photo-dominantes minimal
 /loterun c99 video pro viral                   → roda os dois em paralelo
+/loterun c99 video pro viral data_story        → ambos com mesmo estilo data_story
 ```
 
 **Output:** `<output_dir>/viral/v01_<slug>/{video.mp4, narration.mp3, scene_plan.json, slide_NN.png, caption_timing.json, _meta.json}`
