@@ -15,7 +15,7 @@
     "bot": "node telegram/bot.js",
     "check:syntax": "find scripts pipeline telegram media -type f \\( -name '*.js' -o -name '*.cjs' \\) -print0 | xargs -0 -n1 node --check",
     "test": "node --test test/*.test.js",
-    "ui": "PORT=5178 node ui/server.js"
+    "ui": "TIMESMKT3_UI_PORT=5177 node ui/server.js"
   },
   "keywords": [],
   "author": "",

@@ -8,7 +8,7 @@
  *   - config do projeto (versão, CLAUDE.md head, skills, knowledge files)
  *
  * Não chama spawn, não escreve arquivos, não toca em fila.
- * Mata-se com ctrl-c. Roda em http://localhost:5178 (MKVIDEOS_UI_PORT).
+ * Mata-se com ctrl-c. Roda em http://localhost:5177 (TIMESMKT3_UI_PORT, fallback MKVIDEOS_UI_PORT).
  *
  * Uso: node ui/server.js
  */
@@ -22,7 +22,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const OUTPUT_VIDEOS_DIR = path.join(ROOT, 'output', 'videos');
 const PRJ_DIR = path.join(ROOT, 'prj');
 const HOST = process.env.MKVIDEOS_UI_HOST || '0.0.0.0';
-const PORT = Number(process.env.MKVIDEOS_UI_PORT || 5178);
+const PORT = Number(process.env.TIMESMKT3_UI_PORT || process.env.MKVIDEOS_UI_PORT || 5177);
 
 const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
 const VID_EXT = new Set(['.mp4', '.webm', '.mov']);
