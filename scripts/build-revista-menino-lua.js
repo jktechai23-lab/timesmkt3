@@ -19,6 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { generateImage } = require('../pipeline/generate-image-inemaimg');
+const { verifyImage } = require('../pipeline/verify-image');
 const { chromium } = require('playwright');
 
 const REVISTA_DIR = path.resolve(__dirname, '..', 'prj/inema/revistas/menino_na_lua');
@@ -26,6 +27,8 @@ const STORYBOARD = path.join(REVISTA_DIR, 'storyboard.json');
 const IMGS_DIR = path.join(REVISTA_DIR, 'imgs');
 const QUADROS_DIR = path.join(REVISTA_DIR, 'quadros');
 const MODEL = process.env.INEMAIMG_MODEL || 'flux2-klein';
+const VERIFY = process.env.SKIP_VERIFY !== '1';
+const MAX_RETRIES = parseInt(process.env.VERIFY_MAX_RETRIES || '2', 10);
 
 function compose(frame, imagePath, board) {
   const captionTop = frame.caption_position === 'top';
@@ -141,17 +144,53 @@ async function buildOne(frame, board, browser) {
   const idx = String(frame.n).padStart(2, '0');
   const imgPath = path.join(IMGS_DIR, `quadro_${idx}_${frame.id}.jpg`);
   const outPath = path.join(QUADROS_DIR, `quadro_${idx}_${frame.id}.png`);
+  const verifyPath = path.join(IMGS_DIR, `quadro_${idx}_${frame.id}_verify.json`);
 
-  // 1. Gera imagem limpa com subject_lock via reference image
+  // 1. Gera imagem limpa com subject_lock + verify loop (regen até aprovar)
   if (!fs.existsSync(imgPath)) {
     const fullPrompt = buildPrompt(frame, board);
     const refImage = resolveRefImage(frame, board);
     const refs = refImage ? [refImage] : [];
-    console.log(`[${idx}] generating phase=${frame.phase || '-'} wardrobe=${frame.wardrobe || '-'}: ${frame.prompt.slice(0, 50)}...`);
-    const t0 = Date.now();
-    await generateImage(imgPath, fullPrompt, MODEL, board.format, refs);
-    console.log(`[${idx}] image saved (${((Date.now() - t0) / 1000).toFixed(1)}s)${refImage ? ' [ref-locked]' : ''}`);
+
+    let attempts = 0;
+    let approved = !VERIFY;
+    let lastVerify = null;
+    while (!approved && attempts <= MAX_RETRIES) {
+      attempts += 1;
+      console.log(`[${idx}] gen attempt ${attempts} phase=${frame.phase || '-'} wardrobe=${frame.wardrobe || '-'}: ${frame.prompt.slice(0, 50)}...`);
+      const t0 = Date.now();
+      await generateImage(imgPath, fullPrompt, MODEL, board.format, refs);
+      console.log(`[${idx}] image saved (${((Date.now() - t0) / 1000).toFixed(1)}s)${refImage ? ' [ref-locked]' : ''}`);
+
+      if (VERIFY) {
+        const v0 = Date.now();
+        lastVerify = await verifyImage(imgPath, frame, board);
+        const vt = ((Date.now() - v0) / 1000).toFixed(1);
+        approved = lastVerify.approved;
+        if (approved) {
+          console.log(`[${idx}] ✅ verified (${vt}s, attempt ${attempts}): ${lastVerify.reason.slice(0, 80)}`);
+        } else {
+          console.log(`[${idx}] ❌ rejected (${vt}s, attempt ${attempts}): ${lastVerify.reason.slice(0, 80)} — violations: ${(lastVerify.violations || []).join(', ').slice(0, 100)}`);
+          if (attempts <= MAX_RETRIES) {
+            // remove pra forçar regen no loop
+            try { fs.unlinkSync(imgPath); } catch {}
+          }
+        }
+      } else {
+        approved = true;
+      }
+    }
+
     fs.writeFileSync(imgPath.replace(/\.[^.]+$/, '_prompt.txt'), fullPrompt);
+    if (lastVerify) {
+      fs.writeFileSync(verifyPath, JSON.stringify({
+        attempts, final_approved: approved, ...lastVerify,
+      }, null, 2));
+    }
+
+    if (!approved) {
+      console.log(`[${idx}] ⚠ exhausted ${MAX_RETRIES + 1} attempts — keeping last image anyway`);
+    }
   } else {
     console.log(`[${idx}] image exists, skipping gen`);
   }
