@@ -8,7 +8,7 @@
  *   - Music bed sob narração (volume baixo, mood emocional)
  *   - SFX simples em momentos chave (whoosh ignição, hatch, gentle chime alien)
  *
- * Output: prj/inema/revistas/menino_na_lua/film_v2.mp4
+ * Output: prj/inema/revistas/menino_na_lua/film_v3.mp4
  */
 
 const fs = require('fs');
@@ -20,7 +20,7 @@ const REVISTA_DIR = path.join(PROJECT_ROOT, 'prj/inema/revistas/menino_na_lua');
 const STORYBOARD = path.join(REVISTA_DIR, 'storyboard.json');
 const QUADROS_DIR = path.join(REVISTA_DIR, 'quadros');
 const AUDIO_DIR = path.join(REVISTA_DIR, 'audio');
-const OUTPUT = path.join(REVISTA_DIR, 'film_v2.mp4');
+const OUTPUT = path.join(REVISTA_DIR, 'film_v3.mp4');
 const MUSIC_TRACK = path.join(PROJECT_ROOT, 'prj/inema/assets/music/cta/freesound_523825_acoustic_guitar_nostalgic.mp3');
 const MAX_DURATION = 180;
 const BUFFER_PER_FRAME = 0.30;
@@ -94,7 +94,7 @@ async function main() {
   }
 
   // ── Phase 3: full narration concat (com atempo se necessário) ──
-  const narrationFile = path.join(AUDIO_DIR, '_full_narration_v2.mp3');
+  const narrationFile = path.join(AUDIO_DIR, '_full_narration_v3.mp3');
   const inputs = [];
   const filters = [];
   const labels = [];
@@ -127,7 +127,7 @@ async function main() {
   console.log(`✅ Narração: ${narrDur.toFixed(1)}s`);
 
   // ── Phase 4: mix music bed under narration ──
-  const fullAudio = path.join(AUDIO_DIR, '_full_audio_v2.mp3');
+  const fullAudio = path.join(AUDIO_DIR, '_full_audio_v3.mp3');
   if (fs.existsSync(MUSIC_TRACK)) {
     console.log(`🎵 Mixing music bed (${path.basename(MUSIC_TRACK)}) at vol ${MUSIC_VOLUME}...`);
     // Music loop com volume baixo, narração em volume cheio. amix duration=first usa narração como referência
@@ -150,7 +150,7 @@ async function main() {
   }
 
   // ── Phase 5: concat list de imagens com durações ajustadas pelo speedup ──
-  const concatListPath = path.join(REVISTA_DIR, '_concat_list_v2.txt');
+  const concatListPath = path.join(REVISTA_DIR, '_concat_list_v3.txt');
   const lines = [];
   for (let i = 0; i < items.length; i += 1) {
     const it = items[i];
