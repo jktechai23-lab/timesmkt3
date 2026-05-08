@@ -69,6 +69,13 @@ const AGENTS = [
     skippable: true,
     skipFlag: 'skip_video',
   },
+  {
+    name: 'video_viral',
+    label: 'Video Viral',
+    dependencies: ['research_agent'],  // só precisa do research; ads/copy não exigidos
+    skippable: true,
+    skipFlag: 'skip_video',
+  },
   // ── Stage 4: Platform Agents ─────────────────────────────────────────────
   // Each agent is a specialist for its platform — knows formats, rules, and
   // can request rework (new video format, image crop, etc.) from stages 2-3.
@@ -148,22 +155,29 @@ function hasGeneratedAdAssets(payload, options = {}) {
 function getRequestedVideoAgents(payload, options = {}) {
   let wantQuick = payload.video_quick !== false;
   const wantPro = payload.video_pro === true || payload.video_mode === 'pro' || payload.video_mode === 'both';
+  const wantViral = payload.video_viral === true;
   if (payload.skip_image && wantQuick && !hasGeneratedAdAssets(payload, options)) {
+    wantQuick = false;
+  }
+  // Viral não depende de ads. Se user pediu só viral (sem quick/pro), não força quick.
+  if (wantViral && !wantPro && payload.video_quick === undefined && !payload.video_mode) {
     wantQuick = false;
   }
   return {
     wantQuick,
     wantPro,
+    wantViral,
     active: [
       ...(wantQuick ? ['video_quick'] : []),
       ...(wantPro ? ['video_pro'] : []),
+      ...(wantViral ? ['video_viral'] : []),
     ],
   };
 }
 
 function getEnabledAgents(payload = {}) {
   const enabled = new Set();
-  const { wantQuick, wantPro } = getRequestedVideoAgents(payload);
+  const { wantQuick, wantPro, wantViral } = getRequestedVideoAgents(payload);
   const platformTargets = Array.isArray(payload.platform_targets) ? payload.platform_targets : [];
 
   for (const agent of AGENTS) {
@@ -172,6 +186,7 @@ function getEnabledAgents(payload = {}) {
     }
 
     if (agent.name === 'video_quick' && !wantQuick) continue;
+    if (agent.name === 'video_viral' && !wantViral) continue;
     if (agent.name === 'video_pro' && !wantPro) continue;
     if (agent.skippable && agent.skipFlag && payload[agent.skipFlag]) continue;
 
@@ -596,13 +611,15 @@ async function enqueueJobs(payload) {
     }
   }
 
-  // Resolve video agents based on video_quick / video_pro flags
-  const { wantQuick, wantPro } = getRequestedVideoAgents(payload);
+  // Resolve video agents based on video_quick / video_pro / video_viral flags
+  const { wantQuick, wantPro, wantViral } = getRequestedVideoAgents(payload);
   if (!skip_video) {
-    if (wantQuick && wantPro) console.log('  [video] Running both video_quick + video_pro');
-    else if (wantPro) console.log('  [video] Running video_pro only');
-    else if (wantQuick) console.log('  [video] Running video_quick');
-    else console.log('  [video] No video agents active after skip/fallback rules');
+    const active = [];
+    if (wantQuick) active.push('quick');
+    if (wantPro) active.push('pro');
+    if (wantViral) active.push('viral');
+    if (active.length === 0) console.log('  [video] No video agents active after skip/fallback rules');
+    else console.log(`  [video] Running: ${active.join(' + ')}`);
   }
 
   for (const agent of AGENTS) {
@@ -613,7 +630,12 @@ async function enqueueJobs(payload) {
       continue;
     }
 
-    // Video mode filtering: respect video_quick / video_pro flags
+    // Video mode filtering: respect video_quick / video_pro / video_viral flags
+    if (agent.name === 'video_viral' && !wantViral && !skip_video) {
+      skippedJobs.add(agent.name);
+      console.log(`  ⏭  ${agent.label} — not requested (video_viral=false)`);
+      continue;
+    }
     if (agent.name === 'video_quick' && !wantQuick && !skip_video) {
       skippedJobs.add(agent.name);
       console.log(`  ⏭  ${agent.label} — disabled via video_quick: false`);
@@ -747,18 +769,21 @@ async function enqueueStage(payload, agentNames) {
 
   let resolvedNames = [...agentNames];
   if (agentNames.includes('video_quick')) {
-    // Quick always runs unless explicitly disabled; Pro runs when requested
-    const { wantQuick, wantPro } = getRequestedVideoAgents(payload);
+    // Quick always runs unless explicitly disabled; Pro/Viral runs when requested
+    const { wantQuick, wantPro, wantViral } = getRequestedVideoAgents(payload);
 
     // Replace the default video_quick entry with what's actually requested
-    resolvedNames = resolvedNames.filter(a => a !== 'video_quick');
+    resolvedNames = resolvedNames.filter((a) => a !== 'video_quick');
     if (wantQuick) resolvedNames.push('video_quick');
     if (wantPro) resolvedNames.push('video_pro');
+    if (wantViral) resolvedNames.push('video_viral');
 
-    if (wantQuick && wantPro) console.log('  [video] Running both video_quick + video_pro');
-    else if (wantPro) console.log('  [video] Running video_pro only');
-    else if (wantQuick) console.log('  [video] Running video_quick');
-    else console.log('  [video] No video agents active after skip/fallback rules');
+    const active = [];
+    if (wantQuick) active.push('quick');
+    if (wantPro) active.push('pro');
+    if (wantViral) active.push('viral');
+    if (active.length === 0) console.log('  [video] No video agents active after skip/fallback rules');
+    else console.log(`  [video] Running: ${active.join(' + ')}`);
   }
 
   const stageAgentDefs = AGENTS.filter(a => resolvedNames.includes(a.name));

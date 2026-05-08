@@ -276,9 +276,19 @@ bot.command('help', async (ctx) => {
     `<b>Etapas do pipeline:</b>\n` +
     `  1. Estrategia — Research + Diretor Criativo + Copywriter\n` +
     `  2. Imagens — Ad Creative Designer (validação aspect ratio)\n` +
-    `  3. Video — Quick (ffmpeg) + Pro (Diretor de Foto + Remotion)\n` +
+    `  3. Video — Quick (ffmpeg) + Pro (Diretor de Foto + Remotion) + Viral (Reels/TikTok)\n` +
     `  4. Plataformas — Instagram, YouTube, TikTok, Facebook, Threads, LinkedIn\n` +
     `  5. Distribuicao — Upload + Agendar + Publicar\n\n` +
+
+    `<b>Tipos de vídeo (combinable)</b>\n` +
+    `<code>quick</code> — slideshow rápido ffmpeg ~15s\n` +
+    `<code>pro</code> — Diretor de Foto + Remotion 30-60s\n` +
+    `<code>viral</code> — Reels/TikTok N curtos por hook (bg image + texto overlay)\n` +
+    `Combinar: <code>/loterun c5 video quick pro viral</code>\n\n` +
+
+    `<b>Flags do viral</b>\n` +
+    `<code>musica</code> — adiciona trilha de fundo com ducking sob narração\n` +
+    `<code>caption</code> — captions baked no slide (V1) / word-by-word (V2)\n\n` +
 
     `<b>Templates de vídeo Pro</b>\n` +
     `auto, data_story, explainer, narrativo, brand_film, report, gatilhos\n` +
@@ -312,6 +322,7 @@ bot.command('help', async (ctx) => {
     `<code>/rerun c15 video pro template data_story</code>\n` +
     `<code>/rerun c14 imagens api cleanimg</code>\n` +
     `<code>/loterun c10,c11,c12 video pro data_story</code>\n` +
+    `<code>/loterun c5,c6 video viral musica caption</code>\n` +
     `<code>/loterun c20-c25 imagens api</code>\n` +
     `<code>/lotequick ativos 10 fonte solido #0D0D0D modo enxuto</code>\n` +
     `<code>/import c55-c59 report videos</code>\n\n` +

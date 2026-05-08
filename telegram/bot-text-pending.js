@@ -457,8 +457,14 @@ Keep the same JSON structure. Only modify what the feedback requests.`;
         let activeAgents = [...agentNames];
         if (stageNum === 3) {
           activeAgents = [];
-          if (payload.video_quick !== false) activeAgents.push('video_quick');
-          if (payload.video_pro === true) activeAgents.push('video_pro');
+          // Quick: ON por default, OFF se viral/pro foi pedido sozinho ou explícito false
+          const explicitQuick = payload.video_quick === true;
+          const wantsPro = payload.video_pro === true;
+          const wantsViral = payload.video_viral === true;
+          const quickEnabledByDefault = payload.video_quick !== false && !wantsViral && !wantsPro;
+          if (explicitQuick || quickEnabledByDefault) activeAgents.push('video_quick');
+          if (wantsPro) activeAgents.push('video_pro');
+          if (wantsViral) activeAgents.push('video_viral');
           if (activeAgents.length === 0) activeAgents.push('video_quick');
         }
         if (stageNum === 4) {

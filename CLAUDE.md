@@ -51,7 +51,7 @@ Pipeline de 5 etapas, cada uma com seu gate de aprovação:
 
 1. **Estratégia & Narrativa** — Research → Diretor Criativo → Copywriter → [APROVAÇÃO 1]
 2. **Imagens** — Ad Creative Designer → [APROVAÇÃO 2]
-3. **Vídeo** — Video Quick (default) + Video Pro (sob demanda, independentes) → [APROVAÇÃO 3]
+3. **Vídeo** — Video Quick (default) + Video Pro + **Video Viral** (todos independentes, combinable) → [APROVAÇÃO 3]
 4. **Plataformas** — 6 agentes (só rodam as de `platform_targets`) → [APROVAÇÃO 4]
 5. **Distribuição** — upload + agendar + publicar → [APROVAÇÃO 5]
 
@@ -142,6 +142,7 @@ Cada agente tem sua spec detalhada no respectivo `SKILL.md` — ler o SKILL.md p
 | 2 | Ad Creative Designer | `skills/ad-creative-designer/SKILL.md` | `ads/{layout.json,ad.html,styles.css,instagram_ad.png}` (render Playwright 1080×1080) |
 | 3a | Video Quick | `skills/video-editor-agent/SKILL.md` | `video/ad.mp4` (slideshow 10-20s, ffmpeg) |
 | 3b | Video Pro | `skills/video-editor-agent/SKILL.md` (mode: pro) | `video/ad_pro.mp4` (30-60s, narração+música, Remotion) |
+| 3c | Video Viral | `pipeline/worker-video-viral.js` | `viral/v01_<slug>/{video.mp4,scene_plan.json,slide_NN.png,caption_timing.json}` (N curtos por hook, bg image+texto overlay, música/captions opt-in) |
 | 4 | Platform Agents (6x) | `doc/agentes-distribuicao.md` | `platforms/{instagram,youtube,tiktok,facebook,threads,linkedin}.{json,md}` |
 | 5 | Distribution | `skills/distribution-agent/SKILL.md` | `media_urls.json` + `Publish <task_name> <date>.md` (upload Supabase, posta só se o Publish MD for referenciado pelo nome) |
 
@@ -164,6 +165,39 @@ Templates controlam o `visual_type` de cada cena (não só fotos). Uso: `"video_
 **Visual types por cena:** `photo`, `chart` (Chart.js bar/line/pie/donut), `text_card`, `list`, `split`.
 
 **Implementação:** `pipeline/render-visual-png.js` (PNGs via Playwright), `pipeline/render-video-ffmpeg.js` (pre-render), `pipeline/worker-video-pro.js` (injeta template no scene plan). Múltiplos templates coexistem no mesmo output dir (compartilham áudio/imagens).
+
+### Video Viral (V1)
+
+Tipo paralelo a Quick e Pro — pegada Reels/TikTok. Diferenças do gatilho/report:
+
+- **Determinístico** (sem agente Claude no scene plan)
+- **Bg image full-frame** + texto enorme overlay (estilo ad em movimento)
+- **Punch hook nos 0-3s** (cena 1 tem texto extra-grande, sempre on)
+- **N vídeos por hook** lidos do research (mesmo extrator do gatilho)
+
+**Flags opcionais:**
+
+| Flag payload | Token /loterun | Default | O que faz |
+|---|---|---|---|
+| `music_enabled: true` | `musica` ou `music` | OFF | Trilha de fundo com ducking sob narração (volume 0.12) |
+| `captions_enabled: true` | `caption` ou `legenda` | OFF | Captions baked nos slides (V1) — V2: word-by-word ASS karaoke |
+
+Sintaxe:
+```
+/loterun c99 video viral                       → cru (só narração + bg)
+/loterun c99 video viral musica caption        → com música + captions
+/loterun c99 video pro viral                   → roda os dois em paralelo
+```
+
+**Output:** `<output_dir>/viral/v01_<slug>/{video.mp4, narration.mp3, scene_plan.json, slide_NN.png, caption_timing.json, _meta.json}`
+
+**Word timing (V1):** estimador estilo Phase 1.5 do Pro — divide audioDuration ÷ totalWords com peso por length de palavra. Drift ±200-400ms aceito. V2 troca por Whisper.
+
+**Música:** se `music_enabled=true`, busca em `prj/<dir>/assets/music/` → fallback `assets/music/` global. Pega o primeiro arquivo (V2: mood-matched).
+
+**Implementação:** `pipeline/worker-video-viral.js` (worker) + `pipeline/render-slide-png.js` (template `viral`) + `pipeline/render-video-ffmpeg.js` (compõe vídeo, já suporta `music`/`music_volume` no plan).
+
+**V2 features (não nesse build):** Whisper word-level, pattern interrupts (zoom in/out), pacing adaptativo, multi-template, self-eval LLM.
 
 ---
 

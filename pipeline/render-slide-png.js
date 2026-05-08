@@ -1,11 +1,12 @@
 /**
  * render-slide-png.js — Renders Video Pro scenes as designed slides.
  *
- * 4 template layouts with distinct visual identities:
+ * 5 template layouts with distinct visual identities:
  * - data_story: dark bg, hero numbers, charts, tech authority
  * - explainer: light cards, numbered steps, didactic
  * - narrativo: bold centered text, emotional impact, high contrast
  * - brand_film: minimal text, lower third, photo-dominant
+ * - viral: bg image dominante + texto enorme overlay, pegada Reels/TikTok
  *
  * + CTA layout (shared, adapted per template colors)
  */
@@ -349,6 +350,61 @@ function brandFilmSlide(scene, p, bgImage, w, h) {
   return wrapHTML(content, bgLayer(bgImage, overlay), p, w, h);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TEMPLATE: VIRAL (Reels/TikTok)
+// Bg image dominante full-frame + texto enorme overlay
+// Punch hook scene gets extra-large text + tight overlay
+// ═══════════════════════════════════════════════════════════════════════════
+
+function viralSlide(scene, p, bgImage, w, h) {
+  const vt = scene.visual_type || 'photo';
+  const keyword = scene.keyword || '';
+  const isPunch = scene.id === 'punch_hook' || scene.type === 'hook';
+
+  // Overlay forte pra texto legível sobre qualquer foto
+  const overlay = isPunch
+    ? `background:radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.85) 100%);`
+    : `background:linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.35) 35%, rgba(0,0,0,0.75) 100%);`;
+
+  let content = '';
+  if (vt === 'chart') {
+    content = `
+      <div style="position:absolute;top:${Math.round(h*0.06)}px;left:0;right:0;z-index:10;text-align:center;padding:0 ${Math.round(w*0.06)}px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:${Math.round(h*0.06)}px;color:${p.accent};letter-spacing:0.08em;">${esc(keyword)}</div>
+        <div style="font-family:'Montserrat',sans-serif;font-size:${Math.round(h*0.026)}px;font-weight:800;color:${p.text};margin-top:${Math.round(h*0.008)}px;">${esc(scene.chart_title || '')}</div>
+      </div>
+      <div style="position:absolute;top:${Math.round(h*0.20)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;bottom:${Math.round(h*0.06)}px;z-index:10;">
+        <canvas id="chart" style="max-width:100%;max-height:100%;"></canvas>
+      </div>
+      ${chartScript(scene, p, w, h, 'Montserrat', p.text, 'rgba(255,255,255,0.06)')}
+    `;
+  } else if (vt === 'text_card') {
+    // Caption ON: keyword grande no topo + frase cheia no centro
+    const kwSize = isPunch ? Math.round(h*0.10) : Math.round(h*0.075);
+    const titleSize = isPunch ? Math.round(h*0.05) : Math.round(h*0.045);
+    const bodySize = Math.round(h*0.026);
+    content = `
+      <div style="position:absolute;top:${Math.round(h*0.10)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;text-align:center;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:${kwSize}px;color:${p.accent};letter-spacing:0.05em;line-height:1.0;text-shadow:0 4px 30px rgba(0,0,0,0.9);">${esc(keyword)}</div>
+      </div>
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 ${Math.round(w*0.07)}px;text-align:center;">
+        ${scene.card_title ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:${titleSize}px;color:${p.text};line-height:1.08;letter-spacing:0.02em;text-shadow:0 4px 40px rgba(0,0,0,0.95);">${esc(scene.card_title)}</div>` : ''}
+        ${scene.card_body ? `<div style="font-family:'Montserrat',sans-serif;font-size:${bodySize}px;font-weight:700;color:${p.text};opacity:0.95;margin-top:${Math.round(h*0.025)}px;line-height:1.35;text-shadow:0 2px 20px rgba(0,0,0,0.9);">${esc(scene.card_body)}</div>` : ''}
+      </div>
+    `;
+  } else {
+    // photo: keyword GIGANTE no centro (punch hook style)
+    const kwSize = isPunch ? Math.round(h*0.12) : Math.round(h*0.095);
+    content = `
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:0 ${Math.round(w*0.05)}px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:${kwSize}px;color:${p.text};text-align:center;letter-spacing:0.04em;line-height:0.95;text-shadow:0 6px 50px rgba(0,0,0,0.95),0 0 100px rgba(0,0,0,0.6);">${esc(keyword)}</div>
+      </div>
+    `;
+  }
+
+  return wrapHTML(content, bgLayer(bgImage, overlay), p, w, h);
+}
+
 // ─── CTA (shared, colors from preset) ───────────────────────────────────
 
 function ctaSlide(scene, p, bgImage, w, h) {
@@ -401,6 +457,7 @@ async function renderSlidePNG(scene, preset, bgImage, width, height, outputPath,
       case 'explainer': html = explainerSlide(scene, p, bgImage, width, height); break;
       case 'narrativo': html = narrativoSlide(scene, p, bgImage, width, height); break;
       case 'brand_film': html = brandFilmSlide(scene, p, bgImage, width, height); break;
+      case 'viral': html = viralSlide(scene, p, bgImage, width, height); break;
       default: html = dataStorySlide(scene, p, bgImage, width, height); break; // auto fallback
     }
   }

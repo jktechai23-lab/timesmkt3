@@ -47,7 +47,10 @@ function buildRerunPayloads({ stageTokens, campaignFolder, projectDir, projectRo
   const stageNumbers = new Set();
   let videoQuick = false;
   let videoPro = false;
+  let videoViral = false;
   let videoDraft = false;
+  let musicEnabled = false;
+  let captionsEnabled = false;
 
   const origPayloadPath = path.join(absOutputDir, 'campaign_payload.json');
   let origPayload = {};
@@ -70,8 +73,14 @@ function buildRerunPayloads({ stageTokens, campaignFolder, projectDir, projectRo
     if ((token === 'video' || token === 'videos') && next === 'pro') {
       stageNumbers.add(3); videoPro = true; i += 1; continue;
     }
+    if ((token === 'video' || token === 'videos') && next === 'viral') {
+      stageNumbers.add(3); videoViral = true; i += 1; continue;
+    }
     if (token === 'quick') { stageNumbers.add(3); videoQuick = true; continue; }
     if (token === 'pro') { stageNumbers.add(3); videoPro = true; continue; }
+    if (token === 'viral') { stageNumbers.add(3); videoViral = true; continue; }
+    if (token === 'musica' || token === 'music' || token === 'trilha') { musicEnabled = true; continue; }
+    if (token === 'caption' || token === 'captions' || token === 'legenda' || token === 'legendas') { captionsEnabled = true; continue; }
     if (token === 'draft') { videoDraft = true; continue; }
 
     const validTemplates = ['auto', 'data_story', 'explainer', 'narrativo', 'brand_film', 'report', 'gatilhos'];
@@ -147,7 +156,11 @@ function buildRerunPayloads({ stageTokens, campaignFolder, projectDir, projectRo
   }
 
   if (videoPro && !hasSpecialTemplate) videoQuick = true;
-  const videoMode = videoPro && videoQuick ? 'both' : videoPro ? 'pro' : 'quick';
+  // Se viral foi pedido sozinho (sem quick/pro), NÃO força quick
+  if (videoViral && !videoPro && !videoQuick) {
+    // viral standalone — quick fica off
+  }
+  const videoMode = videoPro && videoQuick ? 'both' : videoPro ? 'pro' : (videoViral && !videoQuick ? 'viral' : 'quick');
 
   if (videoTemplates.length === 0) videoTemplates.push(origPayload.video_template || 'auto');
 
@@ -174,6 +187,9 @@ function buildRerunPayloads({ stageTokens, campaignFolder, projectDir, projectRo
     video_mode: videoMode,
     video_quick: videoQuick,
     video_pro: videoPro,
+    video_viral: videoViral,
+    music_enabled: musicEnabled,
+    captions_enabled: captionsEnabled,
     video_draft: videoDraft,
     video_template: tpl,
     approval_modes: { stage1: 'auto', stage2: 'auto', stage3: 'auto', stage4: 'auto', stage5: 'auto' },
@@ -491,11 +507,14 @@ function registerRerunCommands(bot, deps) {
         + 'Uso: <code>/loterun &lt;campanhas&gt; &lt;etapas&gt; [flags]</code>\n\n'
         + 'Campanhas: lista (<code>c1,c2,c3</code>) ou range (<code>c1-c5</code>).\n'
         + 'Etapas e flags: mesma sintaxe do /rerun.\n\n'
+        + '<b>Tipos de vídeo:</b> <code>quick</code>, <code>pro</code>, <code>viral</code> (combinable).\n'
+        + '<b>Flags do viral:</b> <code>musica</code> (trilha+ducking), <code>caption</code> (legendas).\n\n'
         + 'Exemplos:\n'
         + '<code>/loterun c10,c11,c12 video pro template data_story</code>\n'
         + '<code>/loterun c20-c25 imagens api</code>\n'
         + '<code>/loterun c1,c2,c3 video pro template gatilhos cleanall</code>\n'
-        + '<code>/loterun c40,c41 plataformas</code>\n\n'
+        + '<code>/loterun c5,c6 video viral musica caption</code>\n'
+        + '<code>/loterun c5 video pro viral</code> (roda os dois em paralelo)\n\n'
         + '<i>Roda uma campanha por vez. Se uma falhar, segue para a próxima.</i>',
         { parse_mode: 'HTML' },
       );

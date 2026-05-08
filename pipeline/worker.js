@@ -31,6 +31,7 @@ const { createAdCreativeHandler } = require('./worker-ad-creative');
 const { createPlatformHandlers } = require('./worker-platforms');
 const { createWorkerVideoHandlers } = require('./worker-video');
 const { createWorkerVideoProHandler } = require('./worker-video-pro');
+const { createWorkerVideoViralHandler } = require('./worker-video-viral');
 const kieProvider = require('./generate-image-kie');
 const pollinationsProvider = require('./generate-image-pollinations');
 const piramydProvider = require('./generate-image-piramyd');
@@ -196,6 +197,11 @@ const handleVideoPro = createWorkerVideoProHandler({
   videoTimestamp,
   backupIfExists,
   resolveImageReference,
+});
+const handleVideoViral = createWorkerVideoViralHandler({
+  projectRoot: PROJECT_ROOT,
+  log,
+  readBrandContext,
 });
 const handleAdCreativeDesigner = createAdCreativeHandler({
   projectRoot: PROJECT_ROOT,
@@ -410,6 +416,7 @@ const HANDLERS = {
   ad_creative_designer: handleAdCreativeDesigner,
   video_quick: handleVideoQuick,
   video_pro: handleVideoPro,
+  video_viral: handleVideoViral,
   video_ad_specialist: handleVideoAdSpecialist,  // legacy compat
   platform_instagram: handlePlatformInstagram,
   platform_youtube: handlePlatformYouTube,
