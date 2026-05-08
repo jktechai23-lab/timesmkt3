@@ -69,7 +69,7 @@ function esc(str) {
 
 // ─── Shared: Google Fonts import ────────────────────────────────────────
 
-const FONTS_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=Inter:wght@300;400;500;700&family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&family=Oswald:wght@700;900&family=Bebas+Neue&family=Montserrat:wght@400;500;700;800;900&family=Anton&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@300;400;600&display=swap');`;
+const FONTS_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&family=Oswald:wght@700;900&family=Bebas+Neue&family=Montserrat:wght@400;500;700;800;900&family=Anton&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@300;400;600&family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&display=swap');`;
 
 // ─── Shared: Background image layer ─────────────────────────────────────
 
@@ -351,58 +351,122 @@ function brandFilmSlide(scene, p, bgImage, w, h) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEMPLATE: VIRAL (Reels/TikTok)
-// Bg image dominante full-frame + texto enorme overlay
-// Punch hook scene gets extra-large text + tight overlay
+// TEMPLATE: VIRAL (Reels/TikTok) — design inspirado no carousel ad da campanha
+//
+// Layout layered:
+//   - bg image com leve filter (brightness/contrast/saturate)
+//   - 3-layer overlay (top dark, gradient bottom, vignette radial)
+//   - brand pill no topo + slide number à direita
+//   - main content centralizado por visual_type
+//
+// Cores e fonts vêm do scene.brand (preenchido pelo worker a partir do
+// creative_brief.json). Fallback pra preset (p.primary etc) se não houver.
 // ═══════════════════════════════════════════════════════════════════════════
 
 function viralSlide(scene, p, bgImage, w, h) {
   const vt = scene.visual_type || 'photo';
   const keyword = scene.keyword || '';
   const isPunch = scene.id === 'punch_hook' || scene.type === 'hook';
+  const isCTA = scene.type === 'cta' || scene.id === 'cta' || vt === 'cta';
 
-  // Overlay forte pra texto legível sobre qualquer foto
-  const overlay = isPunch
-    ? `background:radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.85) 100%);`
-    : `background:linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.35) 35%, rgba(0,0,0,0.75) 100%);`;
+  const brand = scene.brand || {};
+  const palette = Array.isArray(brand.colors) && brand.colors.length >= 2
+    ? brand.colors
+    : [p.primary || '#C87941', p.secondary || '#F5C87A', p.accent || '#1A1A2E', p.text || '#FFFFFF'];
+  const pillBg = palette[0] || '#C87941';
+  const accentGold = palette[1] || '#F5C87A';
+  const dark = palette[2] || '#1A1A2E';
+  const text = palette[3] || '#FFFFFF';
+  const pillText = (brand.pill_text || 'INEMA.CLUB').toUpperCase();
+  const sceneIdx = typeof scene.scene_index === 'number' ? scene.scene_index : null;
+  const sceneTotal = typeof scene.scene_total === 'number' ? scene.scene_total : null;
 
-  let content = '';
-  if (vt === 'chart') {
-    content = `
-      <div style="position:absolute;top:${Math.round(h*0.06)}px;left:0;right:0;z-index:10;text-align:center;padding:0 ${Math.round(w*0.06)}px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:${Math.round(h*0.06)}px;color:${p.accent};letter-spacing:0.08em;">${esc(keyword)}</div>
-        <div style="font-family:'Montserrat',sans-serif;font-size:${Math.round(h*0.026)}px;font-weight:800;color:${p.text};margin-top:${Math.round(h*0.008)}px;">${esc(scene.chart_title || '')}</div>
+  // Multi-layer overlay (igual carousel: top dark + gradient bottom + vignette)
+  const overlay = `
+    background:
+      linear-gradient(to top, rgba(10,5,2,0.92) 0%, rgba(15,8,2,0.55) 35%, rgba(0,0,0,0.20) 65%, rgba(0,0,0,0.10) 100%),
+      linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 28%),
+      radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.40) 100%);
+  `;
+
+  // Top bar: brand pill + scene indicator
+  const topBar = `
+    <div style="position:absolute;top:${Math.round(h*0.027)}px;left:${Math.round(w*0.05)}px;right:${Math.round(w*0.05)}px;z-index:30;display:flex;align-items:center;justify-content:space-between;">
+      <div style="background:${pillBg}cc;backdrop-filter:blur(12px);border:1px solid ${accentGold}66;border-radius:9999px;padding:${Math.round(h*0.005)}px ${Math.round(w*0.022)}px;font-family:'Inter',sans-serif;font-size:${Math.round(h*0.014)}px;font-weight:700;color:${text};letter-spacing:0.10em;">${esc(pillText)}</div>
+      ${sceneIdx !== null && sceneTotal ? `<div style="display:flex;gap:${Math.round(w*0.007)}px;align-items:center;">${
+        Array.from({length: sceneTotal}, (_, i) => i === sceneIdx
+          ? `<div style="width:${Math.round(w*0.022)}px;height:${Math.round(h*0.005)}px;border-radius:${Math.round(h*0.003)}px;background:${accentGold};"></div>`
+          : `<div style="width:${Math.round(w*0.007)}px;height:${Math.round(w*0.007)}px;border-radius:50%;background:rgba(255,255,255,0.30);"></div>`
+        ).join('')
+      }</div>` : ''}
+    </div>
+  `;
+
+  // CTA scene: branded final card
+  if (isCTA) {
+    const brandLine = scene.cta_brand || pillText;
+    const action = scene.cta_action || '';
+    const content = `
+      ${topBar}
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 ${Math.round(w*0.08)}px;">
+        ${keyword ? `<div style="font-family:'Inter',sans-serif;font-size:${Math.round(h*0.018)}px;font-weight:600;color:${accentGold};text-transform:uppercase;letter-spacing:0.25em;margin-bottom:${Math.round(h*0.025)}px;">${esc(keyword)}</div>` : ''}
+        <div style="font-family:'Playfair Display',serif;font-size:${Math.round(h*0.07)}px;font-weight:900;color:${text};text-align:center;line-height:1.05;text-shadow:0 4px 40px rgba(0,0,0,0.85);margin-bottom:${Math.round(h*0.025)}px;">${esc(brandLine)}</div>
+        <div style="width:${Math.round(w*0.18)}px;height:3px;background:linear-gradient(90deg,${pillBg},${accentGold});border-radius:2px;margin-bottom:${Math.round(h*0.03)}px;"></div>
+        ${action ? `<div style="background:linear-gradient(135deg,${pillBg},${accentGold});padding:${Math.round(h*0.013)}px ${Math.round(w*0.07)}px;border-radius:9999px;font-family:'Inter',sans-serif;font-size:${Math.round(h*0.020)}px;font-weight:700;color:${dark};text-align:center;box-shadow:0 4px 30px ${accentGold}33;">${esc(action)}</div>` : ''}
       </div>
-      <div style="position:absolute;top:${Math.round(h*0.20)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;bottom:${Math.round(h*0.06)}px;z-index:10;">
+    `;
+    return wrapHTML(content, bgLayer(bgImage, overlay), p, w, h);
+  }
+
+  // Other scenes: content varies by visual_type
+  let body = '';
+  if (vt === 'chart') {
+    body = `
+      <div style="position:absolute;top:${Math.round(h*0.10)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;text-align:center;">
+        <div style="font-family:'Inter',sans-serif;font-size:${Math.round(h*0.014)}px;font-weight:600;color:${accentGold};letter-spacing:0.20em;text-transform:uppercase;margin-bottom:${Math.round(h*0.012)}px;">${esc(keyword)}</div>
+        <div style="font-family:'Playfair Display',serif;font-size:${Math.round(h*0.030)}px;font-weight:700;color:${text};line-height:1.20;">${esc(scene.chart_title || '')}</div>
+      </div>
+      <div style="position:absolute;top:${Math.round(h*0.27)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;bottom:${Math.round(h*0.10)}px;z-index:10;">
         <canvas id="chart" style="max-width:100%;max-height:100%;"></canvas>
       </div>
-      ${chartScript(scene, p, w, h, 'Montserrat', p.text, 'rgba(255,255,255,0.06)')}
+      ${chartScript(scene, { ...p, primary: pillBg, secondary: accentGold, accent: accentGold, text }, w, h, 'Inter', text, 'rgba(255,255,255,0.06)')}
     `;
   } else if (vt === 'text_card') {
-    // Caption ON: keyword grande no topo + frase cheia no centro
-    const kwSize = isPunch ? Math.round(h*0.10) : Math.round(h*0.075);
-    const titleSize = isPunch ? Math.round(h*0.05) : Math.round(h*0.045);
-    const bodySize = Math.round(h*0.026);
-    content = `
-      <div style="position:absolute;top:${Math.round(h*0.10)}px;left:${Math.round(w*0.06)}px;right:${Math.round(w*0.06)}px;z-index:10;text-align:center;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:${kwSize}px;color:${p.accent};letter-spacing:0.05em;line-height:1.0;text-shadow:0 4px 30px rgba(0,0,0,0.9);">${esc(keyword)}</div>
-      </div>
+    const kwSize = isPunch ? Math.round(h*0.020) : Math.round(h*0.018);
+    const titleSize = isPunch ? Math.round(h*0.062) : Math.round(h*0.048);
+    const bodySize = Math.round(h*0.024);
+    body = `
       <div style="position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 ${Math.round(w*0.07)}px;text-align:center;">
-        ${scene.card_title ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:${titleSize}px;color:${p.text};line-height:1.08;letter-spacing:0.02em;text-shadow:0 4px 40px rgba(0,0,0,0.95);">${esc(scene.card_title)}</div>` : ''}
-        ${scene.card_body ? `<div style="font-family:'Montserrat',sans-serif;font-size:${bodySize}px;font-weight:700;color:${p.text};opacity:0.95;margin-top:${Math.round(h*0.025)}px;line-height:1.35;text-shadow:0 2px 20px rgba(0,0,0,0.9);">${esc(scene.card_body)}</div>` : ''}
+        ${keyword ? `<div style="font-family:'Inter',sans-serif;font-size:${kwSize}px;font-weight:700;color:${accentGold};letter-spacing:0.20em;text-transform:uppercase;margin-bottom:${Math.round(h*0.020)}px;text-shadow:0 2px 12px rgba(0,0,0,0.7);">${esc(keyword)}</div>` : ''}
+        ${scene.card_title ? `<div style="font-family:'Playfair Display',serif;font-size:${titleSize}px;font-weight:${isPunch?900:800};color:${text};line-height:1.08;letter-spacing:-0.005em;text-shadow:0 4px 40px rgba(0,0,0,0.95),0 0 80px rgba(0,0,0,0.5);max-width:${Math.round(w*0.86)}px;">${esc(scene.card_title)}</div>` : ''}
+        ${scene.card_body ? `<div style="font-family:'Inter',sans-serif;font-size:${bodySize}px;font-weight:500;color:${text};opacity:0.92;margin-top:${Math.round(h*0.025)}px;line-height:1.40;letter-spacing:0.005em;text-shadow:0 2px 20px rgba(0,0,0,0.85);max-width:${Math.round(w*0.82)}px;">${esc(scene.card_body)}</div>` : ''}
+      </div>
+    `;
+  } else if (vt === 'list') {
+    const items = (scene.list_items || []).map((item, i) => {
+      const t = typeof item === 'string' ? item : item.text;
+      return `<div style="display:flex;align-items:center;gap:${Math.round(w*0.025)}px;padding:${Math.round(h*0.015)}px 0;">
+        <span style="font-family:'Playfair Display',serif;font-size:${Math.round(h*0.045)}px;font-weight:900;color:${accentGold};line-height:1;min-width:${Math.round(w*0.08)}px;">${i+1}</span>
+        <span style="font-family:'Inter',sans-serif;font-size:${Math.round(h*0.026)}px;font-weight:600;color:${text};line-height:1.35;text-shadow:0 2px 14px rgba(0,0,0,0.7);">${esc(t)}</span>
+      </div>`;
+    }).join('');
+    body = `
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;justify-content:center;padding:0 ${Math.round(w*0.10)}px;">
+        ${keyword ? `<div style="font-family:'Inter',sans-serif;font-size:${Math.round(h*0.018)}px;font-weight:700;color:${accentGold};letter-spacing:0.20em;text-transform:uppercase;margin-bottom:${Math.round(h*0.025)}px;text-shadow:0 2px 12px rgba(0,0,0,0.7);">${esc(keyword)}</div>` : ''}
+        ${items}
       </div>
     `;
   } else {
-    // photo: keyword GIGANTE no centro (punch hook style)
-    const kwSize = isPunch ? Math.round(h*0.12) : Math.round(h*0.095);
-    content = `
-      <div style="position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:0 ${Math.round(w*0.05)}px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:${kwSize}px;color:${p.text};text-align:center;letter-spacing:0.04em;line-height:0.95;text-shadow:0 6px 50px rgba(0,0,0,0.95),0 0 100px rgba(0,0,0,0.6);">${esc(keyword)}</div>
+    // photo (default punch hook): keyword grande overlay sobre foto
+    const kwSize = isPunch ? Math.round(h*0.075) : Math.round(h*0.060);
+    body = `
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:0 ${Math.round(w*0.06)}px;">
+        <div style="font-family:'Playfair Display',serif;font-size:${kwSize}px;font-weight:900;color:${text};text-align:center;letter-spacing:-0.005em;line-height:1.0;text-shadow:0 6px 50px rgba(0,0,0,0.95),0 0 100px rgba(0,0,0,0.6);max-width:${Math.round(w*0.88)}px;">${esc(keyword)}</div>
       </div>
     `;
   }
 
-  return wrapHTML(content, bgLayer(bgImage, overlay), p, w, h);
+  return wrapHTML(`${topBar}${body}`, bgLayer(bgImage, overlay), p, w, h);
 }
 
 // ─── CTA (shared, colors from preset) ───────────────────────────────────

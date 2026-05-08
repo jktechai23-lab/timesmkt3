@@ -51,6 +51,7 @@ function buildRerunPayloads({ stageTokens, campaignFolder, projectDir, projectRo
   let videoDraft = false;
   let musicEnabled = false;
   let captionsEnabled = false;
+  let viralDuration = null;  // segundos, null = default 30 do worker
 
   const origPayloadPath = path.join(absOutputDir, 'campaign_payload.json');
   let origPayload = {};
@@ -82,6 +83,15 @@ function buildRerunPayloads({ stageTokens, campaignFolder, projectDir, projectRo
     if (token === 'musica' || token === 'music' || token === 'trilha') { musicEnabled = true; continue; }
     if (token === 'caption' || token === 'captions' || token === 'legenda' || token === 'legendas') { captionsEnabled = true; continue; }
     if (token === 'draft') { videoDraft = true; continue; }
+
+    // Duration token: 20s, 30s, 45s, 60s, 90s ou raw 30 (validado entre 15-90)
+    {
+      const m = token.match(/^(\d{2,3})s?$/);
+      if (m) {
+        const v = parseInt(m[1], 10);
+        if (v >= 15 && v <= 90) { viralDuration = v; continue; }
+      }
+    }
 
     const validTemplates = ['auto', 'data_story', 'explainer', 'narrativo', 'brand_film', 'report', 'gatilhos'];
     if (token === 'template' && next && validTemplates.includes(next)) {
@@ -190,6 +200,7 @@ function buildRerunPayloads({ stageTokens, campaignFolder, projectDir, projectRo
     video_viral: videoViral,
     music_enabled: musicEnabled,
     captions_enabled: captionsEnabled,
+    viral_duration: viralDuration,
     video_draft: videoDraft,
     video_template: tpl,
     approval_modes: { stage1: 'auto', stage2: 'auto', stage3: 'auto', stage4: 'auto', stage5: 'auto' },

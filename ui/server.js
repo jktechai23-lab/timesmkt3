@@ -122,6 +122,18 @@ function scanCampaign(projectName, campaignDir) {
       return { slug: e.name, ads: gAds, videos: gVids };
     })
     .sort((a, b) => a.slug.localeCompare(b.slug));
+
+  // Viral: cada subpasta de viral/ é um vídeo independente (espelha gatilhos).
+  const viralDir = path.join(campaignDir, 'viral');
+  const viral = tryReadDir(viralDir)
+    .filter((e) => e.isDirectory())
+    .map((e) => {
+      const vDir = path.join(viralDir, e.name);
+      const vAds = findFiles(vDir, isImg, 20, 1).map((p) => ({ name: path.basename(p), url: fileUrl(p) }));
+      const vVids = findFiles(vDir, isVid, 4, 1).map((p) => ({ name: path.basename(p), url: fileUrl(p) }));
+      return { slug: e.name, ads: vAds, videos: vVids };
+    })
+    .sort((a, b) => a.slug.localeCompare(b.slug));
   const publishMd = findFiles(campaignDir, (f) => /^Publish .+\.md$/i.test(path.basename(f)), 1, 1)[0];
   const interactiveReport = path.join(campaignDir, 'interactive_report.html');
 
@@ -152,12 +164,14 @@ function scanCampaign(projectName, campaignDir) {
       videos: countFiles(videoDir, isVid),
       logs: countFiles(logsDir, (f) => /\.(log|out)$/i.test(f)),
       gatilhos: gatilhos.length,
+      viral: viral.length,
       report: report ? 1 : 0,
     },
     ads,
     imgs,
     videos,
     gatilhos,
+    viral,
     report,
     files: {
       payload: tryStat(path.join(campaignDir, 'campaign_payload.json')) ? rel(path.join(campaignDir, 'campaign_payload.json')) : null,
@@ -437,7 +451,7 @@ function serveZip(req, res, url) {
   if (!/^[a-zA-Z0-9_\-]+\/[a-zA-Z0-9_\-]+$/.test(campaign)) {
     res.writeHead(400); res.end('bad campaign'); return;
   }
-  if (!['imgs', 'videos', 'gatilhos'].includes(kind)) {
+  if (!['imgs', 'videos', 'gatilhos', 'viral'].includes(kind)) {
     res.writeHead(400); res.end('bad kind'); return;
   }
   const [proj, task] = campaign.split('/');
@@ -458,6 +472,10 @@ function serveZip(req, res, url) {
   } else if (kind === 'gatilhos') {
     const gatilhosDir = path.join(campaignDir, 'gatilhos');
     relFiles = findFiles(gatilhosDir, (f) => VID_EXT.has(path.extname(f).toLowerCase()), 200, 3)
+      .map((f) => path.relative(campaignDir, f));
+  } else if (kind === 'viral') {
+    const viralDir = path.join(campaignDir, 'viral');
+    relFiles = findFiles(viralDir, (f) => VID_EXT.has(path.extname(f).toLowerCase()), 200, 3)
       .map((f) => path.relative(campaignDir, f));
   }
 

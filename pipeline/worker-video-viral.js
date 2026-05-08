@@ -21,9 +21,40 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 const { renderSlidePNG, resolvePreset, closeBrowser } = require('./render-slide-png');
 const { rewritePainTrend } = require('./consumer-voice-rewriter');
+
+const CLAUDE_PATH = '/home/nmaldaner/.local/bin/claude';
+
+/**
+ * Invoca claude -p e retorna stdout. Timeout default 120s.
+ */
+function callClaudeP(prompt, { timeoutMs = 120000, model = 'sonnet' } = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(CLAUDE_PATH, [
+      '-p', prompt,
+      '--dangerously-skip-permissions',
+      '--model', model,
+    ], { stdio: ['ignore', 'pipe', 'pipe'] });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (d) => { stdout += d.toString(); });
+    child.stderr.on('data', (d) => { stderr += d.toString(); });
+    child.on('error', () => resolve({ ok: false, stdout: '', stderr: 'spawn error' }));
+    child.on('close', (code) => resolve({ ok: code === 0, stdout, stderr, code }));
+    setTimeout(() => { try { child.kill('SIGTERM'); } catch {} }, timeoutMs);
+  });
+}
+
+function extractJSON(text) {
+  if (!text) return null;
+  // procura primeiro objeto JSON balanceado
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try { return JSON.parse(m[0]); } catch { return null; }
+}
 
 function slugify(str) {
   return String(str || '').toLowerCase()
@@ -160,6 +191,246 @@ function pickMusicTrack(projectRoot, projectDir) {
 }
 
 /**
+ * Lê creative_brief.json + brand_identity.md + copy/ pra montar contexto de
+ * campanha que alimenta o renderer (cores, pill text) e o LLM (grounding).
+ */
+function loadCampaignContext(projectRoot, projectDir, outputDir) {
+  const ctx = {
+    brand_pill: 'INEMA.CLUB',
+    colors: ['#C87941', '#F5C87A', '#1A1A2E', '#FFFFFF'],
+    mood: '',
+    typography_mood: '',
+    photography_style: '',
+    narrative_arc: [],
+    approved_ctas: [],
+    campaign_theme: '',
+    emotional_hook: '',
+    positioning: '',
+    brand_identity: '',
+    copy_carousel_texts: [],
+    copy_video_narration: [],
+  };
+
+  // creative_brief.json
+  try {
+    const briefPath = path.resolve(projectRoot, outputDir, 'creative', 'creative_brief.json');
+    if (fs.existsSync(briefPath)) {
+      const brief = JSON.parse(fs.readFileSync(briefPath, 'utf-8'));
+      const vd = brief.visual_direction || {};
+      if (Array.isArray(vd.dominant_colors) && vd.dominant_colors.length >= 2) ctx.colors = vd.dominant_colors;
+      if (vd.mood) ctx.mood = String(vd.mood);
+      if (vd.typography_mood) ctx.typography_mood = String(vd.typography_mood);
+      if (vd.photography_style) ctx.photography_style = String(vd.photography_style);
+      if (Array.isArray(brief.narrative_arc)) ctx.narrative_arc = brief.narrative_arc;
+      if (Array.isArray(brief.approved_ctas)) ctx.approved_ctas = brief.approved_ctas;
+      if (brief.campaign_theme) ctx.campaign_theme = String(brief.campaign_theme);
+      if (brief.emotional_hook) ctx.emotional_hook = String(brief.emotional_hook);
+      if (brief.positioning_statement) ctx.positioning = String(brief.positioning_statement);
+    }
+  } catch {}
+
+  // brand_identity.md (pra grounding do LLM)
+  try {
+    const biPath = path.resolve(projectRoot, projectDir, 'knowledge', 'brand_identity.md');
+    if (fs.existsSync(biPath)) {
+      ctx.brand_identity = fs.readFileSync(biPath, 'utf-8').slice(0, 6000);
+    }
+  } catch {}
+
+  // copy/ — textos aprovados (referência de tom, não copia)
+  try {
+    const copyDir = path.resolve(projectRoot, outputDir, 'copy');
+    if (fs.existsSync(copyDir)) {
+      for (const f of fs.readdirSync(copyDir)) {
+        if (f.endsWith('.json')) {
+          try {
+            const j = JSON.parse(fs.readFileSync(path.join(copyDir, f), 'utf-8'));
+            if (Array.isArray(j.carousel_texts)) ctx.copy_carousel_texts = j.carousel_texts.slice(0, 8);
+            if (Array.isArray(j.video_narration)) ctx.copy_video_narration = j.video_narration.slice(0, 5);
+          } catch {}
+        }
+      }
+    }
+  } catch {}
+
+  // brand_pill: brand do research ou default
+  try {
+    const resPath = path.resolve(projectRoot, outputDir, 'research_results.json');
+    if (fs.existsSync(resPath)) {
+      const r = JSON.parse(fs.readFileSync(resPath, 'utf-8'));
+      if (r.brand) ctx.brand_pill = `${String(r.brand).toUpperCase()}.CLUB`;
+    }
+  } catch {}
+
+  return ctx;
+}
+
+/**
+ * Decide nº de cenas pelo target duration. Inclui sempre punch_hook + cta + hold.
+ * 20s = 5 cenas (atual), 30s = 7 cenas, 45s = 9 cenas, 60s+ = 11-12 cenas.
+ */
+function planSceneCount(targetSeconds) {
+  if (targetSeconds <= 22) return 5;
+  if (targetSeconds <= 32) return 7;
+  if (targetSeconds <= 47) return 9;
+  if (targetSeconds <= 65) return 11;
+  return 12;
+}
+
+/**
+ * Bias do template visual no LLM scene plan:
+ *  - viral (default): mix natural photo + text_card
+ *  - data_story: priorize chart e text_card com numbers
+ *  - narrativo: priorize text_card grande com copy emocional
+ *  - brand_film: priorize photo com texto minimal
+ *  - explainer: priorize list e text_card numbered
+ */
+function templateBiasGuidance(template) {
+  const t = (template || 'viral').toLowerCase();
+  if (t === 'data_story') {
+    return 'BIAS DE VISUAL_TYPE: 1 cena chart com chart_type "bar" e chart_data [{label,value}] (use research.trends como fonte; quando não houver numero, gere escala 10/8/6/4). Restante text_card com numeros e stats.';
+  }
+  if (t === 'narrativo') {
+    return 'BIAS DE VISUAL_TYPE: maioria text_card com card_title curto e impactante. Use photo apenas em punch_hook. Foco no peso da palavra escrita.';
+  }
+  if (t === 'brand_film') {
+    return 'BIAS DE VISUAL_TYPE: maioria photo, texto minimal (só keyword). Atmosfera cinematográfica, deixa a imagem respirar.';
+  }
+  if (t === 'explainer') {
+    return 'BIAS DE VISUAL_TYPE: 2-3 cenas list com list_items numerados (3 a 5 items cada). Use text_card pra contexto entre listas.';
+  }
+  // viral (default)
+  return 'BIAS DE VISUAL_TYPE: punch_hook = photo com keyword grande. 2-3 cenas text_card com card_title+card_body emocional. 1 cena pode ser photo só com keyword. Termina sempre em cta + hold.';
+}
+
+/**
+ * Gera scene plan emocional via Claude — grounded em brand+research+copy.
+ * Retorna array de cenas ou null se falhar.
+ */
+async function generateScenePlanLLM({
+  hook, hookSource, painCard, painBody, trendCard, trendBody,
+  ctx, template, targetDuration, ctaBrand, ctaAction, log,
+}) {
+  const sceneCount = planSceneCount(targetDuration);
+  const guidance = templateBiasGuidance(template);
+
+  const arcGuide = ctx.narrative_arc.length > 0
+    ? `ARCO NARRATIVO DA CAMPANHA (referência de TOM, não copia literal):\n${ctx.narrative_arc.map((s, i) => `${i+1}. ${s}`).join('\n')}`
+    : '';
+
+  const ctaGuide = ctx.approved_ctas.length > 0
+    ? `CTAS APROVADOS (use um na cena CTA):\n${ctx.approved_ctas.slice(0, 5).map((c) => `- ${c}`).join('\n')}`
+    : '';
+
+  const copyHint = ctx.copy_carousel_texts.length > 0
+    ? `TEXTOS DA CAMPANHA (referência de pegada, NÃO copia):\n${ctx.copy_carousel_texts.slice(0, 5).map((t) => typeof t === 'string' ? `- ${t}` : `- ${t.text || t.headline || JSON.stringify(t).slice(0, 100)}`).join('\n')}`
+    : '';
+
+  const brandHint = ctx.brand_identity
+    ? `BRAND IDENTITY (siga o tom):\n${ctx.brand_identity.slice(0, 1500)}\n\n`
+    : '';
+
+  const prompt = `Você é um copywriter brasileiro especialista em copy de Reels/TikTok que viralizam.
+
+CAMPANHA: ${ctx.campaign_theme || 'campanha de marketing'}
+${ctx.positioning ? `POSICIONAMENTO: ${ctx.positioning.slice(0, 300)}\n` : ''}${ctx.emotional_hook ? `EMOÇÃO ALVO: ${ctx.emotional_hook.slice(0, 200)}\n` : ''}${ctx.mood ? `MOOD VISUAL: ${ctx.mood.slice(0, 200)}\n` : ''}${ctx.typography_mood ? `TIPOGRAFIA: ${ctx.typography_mood.slice(0, 200)}\n` : ''}
+${brandHint}${arcGuide ? arcGuide + '\n\n' : ''}${copyHint ? copyHint + '\n\n' : ''}${ctaGuide ? ctaGuide + '\n\n' : ''}HOOK PRINCIPAL DESSE VÍDEO:
+"${hook}"
+(fonte: ${hookSource})
+
+DADOS DE APOIO (já reescritos em voz do consumidor):
+- Pain: ${painCard || '(sem pain)'}
+- Pain body: ${painBody || ''}
+- Trend: ${trendCard || '(sem trend)'}
+- Trend body: ${trendBody || ''}
+
+TAREFA: Escreva um scene_plan JSON pra UM vídeo Reels vertical 9:16 de ~${targetDuration}s com ${sceneCount} cenas que:
+
+1. PRIMEIRA CENA = punch_hook (3-4s): keyword GIGANTE em uppercase 2-3 palavras impactantes, type "hook", visual_type "photo" (só a keyword sobre foto)
+2. CENAS DO MEIO (${sceneCount - 3} cenas): construa arco emocional — vulnerabilidade nomeada → contraste → revelação → prova. Use power words PT-BR: NUNCA, EXISTE, AINDA DÁ TEMPO, AGORA, HOJE, VOCÊ. Direct address (você/sua). Frases curtas, ritmo de Reels.
+3. PENÚLTIMA CENA = cta (4-5s): visual_type "cta", cta_brand "${ctaBrand}", cta_action de um dos CTAs aprovados
+4. ÚLTIMA CENA = hold (3s): visual_type "cta" com cta_brand só, cta_action vazio
+
+${guidance}
+
+REGRAS DE TEXTO:
+- card_title: max 60 chars, frase de impacto, sem emojis
+- card_body: max 110 chars, complementa o title
+- keyword: max 25 chars, uppercase, 2-3 palavras
+- narration: 1 frase POR cena (10-25 palavras), conversacional, soa natural quando lido em voz alta
+- TODAS as cenas devem ter narration (exceto hold que pode ficar vazio)
+- Tom MUITO PRÓXIMO da campanha — leia BRAND IDENTITY e respeite
+
+OUTPUT: APENAS JSON válido, no formato:
+{
+  "scenes": [
+    {
+      "id": "punch_hook",
+      "type": "hook",
+      "visual_type": "photo",
+      "keyword": "PALAVRA GIGANTE",
+      "duration": 3,
+      "card_title": "",
+      "card_body": "",
+      "narration": "frase falada nessa cena."
+    },
+    {
+      "id": "cena_2",
+      "type": "problem",
+      "visual_type": "text_card",
+      "keyword": "DOR",
+      "duration": 5,
+      "card_title": "Frase impacto",
+      "card_body": "Detalhe.",
+      "narration": "..."
+    }
+    /* ... */,
+    {
+      "id": "cta",
+      "type": "cta",
+      "visual_type": "cta",
+      "keyword": "AGORA",
+      "duration": 4,
+      "cta_brand": "${ctaBrand}",
+      "cta_action": "Acesse grátis",
+      "narration": "..."
+    },
+    {
+      "id": "hold",
+      "type": "cta",
+      "visual_type": "cta",
+      "keyword": "${ctaBrand}",
+      "duration": 3,
+      "cta_brand": "${ctaBrand}",
+      "cta_action": "",
+      "narration": ""
+    }
+  ]
+}
+
+Garanta que durations somem aproximadamente ${targetDuration}s. SOMENTE JSON, sem markdown nem texto fora.`;
+
+  log(`  [scene-plan-llm] requesting ${sceneCount} scenes for ${targetDuration}s...`);
+  const t0 = Date.now();
+  const result = await callClaudeP(prompt, { timeoutMs: 120000 });
+  const elapsed = Math.round((Date.now() - t0) / 1000);
+
+  if (!result.ok) {
+    log(`  [scene-plan-llm] failed (${elapsed}s): ${result.stderr.slice(0, 80)}`);
+    return null;
+  }
+
+  const parsed = extractJSON(result.stdout);
+  if (!parsed || !Array.isArray(parsed.scenes) || parsed.scenes.length === 0) {
+    log(`  [scene-plan-llm] no valid JSON in output (${elapsed}s)`);
+    return null;
+  }
+
+  log(`  [scene-plan-llm] ok (${elapsed}s, ${parsed.scenes.length} cenas)`);
+  return parsed.scenes;
+}
+
+/**
  * Generate viral videos batch from research data.
  * @param {object} opts
  * @returns {Promise<{viralDir, count, completed}>}
@@ -177,11 +448,19 @@ async function generateViral(opts) {
     musicEnabled = false,
     captionsEnabled = false,
     videoTemplate = 'viral',  // 'viral' (default) | 'narrativo' | 'data_story' | 'brand_film' | 'explainer'
+    targetDuration = 30,       // segundos; default 30 (V2 spec, V1 era 20)
     log,
   } = opts;
 
   // Resolve template: 'auto' → 'viral' (default do tipo)
   const slideTemplate = (!videoTemplate || videoTemplate === 'auto') ? 'viral' : videoTemplate;
+
+  // ── Carrega contexto da campanha (brand_identity, creative_brief, copy) ──
+  const ctx = loadCampaignContext(projectRoot, projectDir, outputDir);
+  const brandForRender = {
+    pill_text: ctaBrand || ctx.brand_pill || 'INEMA.CLUB',
+    colors: ctx.colors,
+  };
 
   const researchPath = path.resolve(projectRoot, outputDir, 'research_results.json');
   if (!fs.existsSync(researchPath)) {
@@ -364,59 +643,71 @@ async function generateViral(opts) {
       trendBody = findProp(trend, 'detail', 'descricao', 'description', 'detalhe');
     }
 
-    // ── Punch hook keyword (cena 1, 0-3s) ──
-    // Escolhe 2 palavras curtas mais "fortes" do hook (>3 chars), uppercase
+    // ── Punch hook keyword fallback ──
     const hookWords = h.hook.split(/\s+/).filter((w) => w.length > 3).slice(0, 2).join(' ').toUpperCase() || 'ATENÇÃO';
 
-    // ── Scene plan: 5 cenas curtas (~25-30s total) ──
-    // Diferenças do gatilho:
-    //  - Cena 1 (PUNCH HOOK): duration 3s (mais curto, mais punch), keyword grande sem card_title
-    //  - Cenas usam visual_type='photo' quando captionsEnabled=false (foto + keyword overlay)
-    //  - Cenas usam 'text_card' quando captionsEnabled=true (foto + texto cheio overlay)
-    const captionVT = captionsEnabled ? 'text_card' : 'photo';
-    const scenes = [
-      {
-        // Scene 1: PUNCH HOOK — frase de impacto, 3s
-        id: 'punch_hook', type: 'hook', visual_type: captionVT,
-        keyword: hookWords, duration: 3,
-        card_title: captionsEnabled ? h.hook.slice(0, 80) : '',
-        card_body: '',
-        narration: '',
-      },
-      {
-        // Scene 2: PROBLEMA
-        id: 'problema', type: 'problem', visual_type: captionVT,
-        keyword: painCard ? painCard.split(' ').filter((w) => w.length > 3).slice(0, 2).join(' ').toUpperCase() : 'PRA VOCÊ',
-        duration: 5,
-        card_title: captionsEnabled ? (painCard || '').slice(0, 60) || 'Você sente isso também.' : '',
-        card_body: captionsEnabled ? (painBody || '').slice(0, 100) : '',
-        narration: '',
-      },
-      {
-        // Scene 3: PROVA
-        id: 'prova', type: 'data', visual_type: captionVT,
-        keyword: 'PRA VOCÊ', duration: 5,
-        card_title: captionsEnabled ? (trendCard || '').slice(0, 60) : '',
-        card_body: captionsEnabled ? (trendBody || '').slice(0, 100) : '',
-        narration: '',
-      },
-      {
-        // Scene 4: CTA
-        id: 'cta', type: 'cta', visual_type: 'cta',
-        keyword: 'COMECE AGORA', duration: 4,
-        cta_brand: ctaBrand,
-        cta_action: h.cta || ctaAction,
-        narration: '',
-      },
-      {
-        // Scene 5: HOLD silencioso
-        id: 'hold', type: 'cta', visual_type: 'cta',
-        keyword: ctaBrand, duration: 3,
-        cta_brand: ctaBrand,
-        cta_action: '',
-        narration: '',
-      },
-    ];
+    // ── Scene plan: tenta LLM grounded (C+); fallback hardcoded se falhar ──
+    let scenes = await generateScenePlanLLM({
+      hook: h.hook,
+      hookSource: h.source,
+      painCard, painBody, trendCard, trendBody,
+      ctx,
+      template: slideTemplate,
+      targetDuration,
+      ctaBrand,
+      ctaAction: h.cta || ctaAction,
+      log: (m) => log(outputDir, 'video_viral', m),
+    });
+
+    if (!scenes || scenes.length === 0) {
+      log(outputDir, 'video_viral', `  [scene-plan] LLM failed — using hardcoded 5-cena fallback`);
+      const captionVT = captionsEnabled ? 'text_card' : 'photo';
+      scenes = [
+        {
+          id: 'punch_hook', type: 'hook', visual_type: captionVT,
+          keyword: hookWords, duration: 3,
+          card_title: captionsEnabled ? h.hook.slice(0, 80) : '',
+          card_body: '',
+          narration: h.hook,
+        },
+        {
+          id: 'problema', type: 'problem', visual_type: captionVT,
+          keyword: painCard ? painCard.split(' ').filter((w) => w.length > 3).slice(0, 2).join(' ').toUpperCase() : 'PRA VOCÊ',
+          duration: 5,
+          card_title: captionsEnabled ? (painCard || '').slice(0, 60) || 'Você sente isso também.' : '',
+          card_body: captionsEnabled ? (painBody || '').slice(0, 100) : '',
+          narration: painCard || painBody || '',
+        },
+        {
+          id: 'prova', type: 'data', visual_type: captionVT,
+          keyword: 'PRA VOCÊ', duration: 5,
+          card_title: captionsEnabled ? (trendCard || '').slice(0, 60) : '',
+          card_body: captionsEnabled ? (trendBody || '').slice(0, 100) : '',
+          narration: (trendCard || '').slice(0, 80),
+        },
+        {
+          id: 'cta', type: 'cta', visual_type: 'cta',
+          keyword: 'COMECE AGORA', duration: 4,
+          cta_brand: ctaBrand,
+          cta_action: h.cta || ctaAction,
+          narration: `Acesse ${ctaBrand}.`,
+        },
+        {
+          id: 'hold', type: 'cta', visual_type: 'cta',
+          keyword: ctaBrand, duration: 3,
+          cta_brand: ctaBrand,
+          cta_action: '',
+          narration: '',
+        },
+      ];
+    }
+
+    // Injeta brand context em cada cena (renderer usa pra brand pill + cores)
+    for (let si = 0; si < scenes.length; si += 1) {
+      scenes[si].brand = brandForRender;
+      scenes[si].scene_index = si;
+      scenes[si].scene_total = scenes.length;
+    }
 
     // ── Narration ──
     const wantsNarration = videoAudio === 'narration' || videoAudio === 'both';
@@ -424,23 +715,20 @@ async function generateViral(opts) {
     let captionTimingPath = null;
 
     if (wantsNarration) {
-      const scriptParts = [
-        h.hook,
-        painCard || '',
-        trendCard ? trendCard.slice(0, 80) : '',
-        `Acesse ${ctaBrand}.`,
-      ].filter((p) => p && p.trim().length > 0).map((p) => p.trim());
+      // Narração é construída a partir do narration.scene.narration (LLM já gerou).
+      // Cenas hold (última, narration vazia) ficam silenciosas.
+      const sceneNarrations = scenes.map((s, i) => ({
+        idx: i,
+        id: s.id || `s${i}`,
+        text: String(s.narration || '').trim(),
+      })).filter((p) => p.text.length > 0);
 
-      // Set narration text per scene (4 partes mapeiam pras 4 primeiras cenas)
-      scenes[0].narration = h.hook;
-      scenes[1].narration = painCard || painBody || '';
-      scenes[2].narration = (trendCard || '').slice(0, 80);
-      scenes[3].narration = `Acesse ${ctaBrand}.`;
-      scenes[4].narration = '';
+      const scriptParts = sceneNarrations.map((p) => p.text);
+      const sceneIds = sceneNarrations.map((p) => p.id);
 
       narrationFile = path.join(itemDir, 'narration.mp3');
       const totalChars = scriptParts.reduce((sum, p) => sum + p.length, 0);
-      if (totalChars > 20) {
+      if (totalChars > 20 && scriptParts.length > 0) {
         const tmpDir = path.join(itemDir, '_tts_tmp');
         try {
           fs.mkdirSync(tmpDir, { recursive: true });
@@ -463,9 +751,7 @@ async function generateViral(opts) {
           concatPartsWithSilence(partFiles, silencesSec, narrationFile);
           log(outputDir, 'video_viral', `  Narration generated (${scriptParts.length} frases + pausas)`);
 
-          // ── Caption timing JSON (sempre gerado, usado em V2 — barato) ──
           const audioDur = probeDurationSec(narrationFile);
-          const sceneIds = ['punch_hook', 'problema', 'prova', 'cta'];
           const timing = estimateWordTiming(scriptParts, sceneIds, audioDur, silencesSec);
           captionTimingPath = path.join(itemDir, 'caption_timing.json');
           fs.writeFileSync(captionTimingPath, JSON.stringify(timing, null, 2));
@@ -497,11 +783,11 @@ async function generateViral(opts) {
       scenes,
     };
 
-    // ── Render slides (template "viral") ──
+    // ── Render slides (template determinado por slideTemplate) ──
     const motionCycle = ['zoom_in', 'push-in', 'drift', 'breathe', 'ken-burns-in'];
     for (let si = 0; si < scenes.length; si += 1) {
       const scene = scenes[si];
-      const bgImage = bgImages.length > 0 ? bgImages[(hi * 5 + si) % bgImages.length] : null;
+      const bgImage = bgImages.length > 0 ? bgImages[(hi * scenes.length + si) % bgImages.length] : null;
       const slidePath = path.join(itemDir, `slide_${String(si + 1).padStart(2, '0')}.png`);
 
       try {
@@ -575,9 +861,14 @@ function createWorkerVideoViralHandler({ projectRoot, log, readBrandContext }) {
       task_name, task_date, output_dir, project_dir,
       music_enabled = false,
       captions_enabled = false,
+      viral_duration = null,
     } = job.data;
 
-    log(output_dir, 'video_viral', `Starting viral worker (music=${music_enabled}, caption=${captions_enabled})`);
+    const targetDuration = (typeof viral_duration === 'number' && viral_duration >= 15 && viral_duration <= 90)
+      ? viral_duration
+      : 30;
+
+    log(output_dir, 'video_viral', `Starting viral worker (music=${music_enabled}, caption=${captions_enabled}, duration=${targetDuration}s)`);
 
     try {
       // Resolve CTA brand a partir do research ou brand_identity
@@ -606,6 +897,7 @@ function createWorkerVideoViralHandler({ projectRoot, log, readBrandContext }) {
         musicEnabled: music_enabled,
         captionsEnabled: captions_enabled,
         videoTemplate: job.data.video_template || 'viral',
+        targetDuration,
         ctaBrand,
         ctaAction: job.data.cta_action || 'Acesse grátis',
         log,

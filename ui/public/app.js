@@ -231,6 +231,7 @@ function campaignCard(c) {
   if (c.imgs.length) actions.push(`<button data-action="imgs" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">${c.imgs.length} imgs</button>`);
   if (c.videos.length) actions.push(`<button data-action="videos" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">${c.videos.length} vídeos</button>`);
   if (c.gatilhos?.length) actions.push(`<button data-action="gatilhos" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">${c.gatilhos.length} gatilhos</button>`);
+  if (c.viral?.length) actions.push(`<button data-action="viral" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">${c.viral.length} viral</button>`);
   if (c.report) actions.push(`<button data-action="report" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">ReportVd</button>`);
   if (c.files.payload) actions.push(`<button data-action="payload" data-path="${encodeURIComponent(c.files.payload)}" data-name="${escapeHtml(c.name)}">payload</button>`);
   if (c.files.publish) actions.push(`<button data-action="publish" data-path="${encodeURIComponent(c.files.publish)}" data-name="${escapeHtml(c.name)}">publish.md</button>`);
@@ -238,6 +239,7 @@ function campaignCard(c) {
   if (c.imgs.length) actions.push(`<a class="dl-zip" href="/zip?campaign=${encodeURIComponent(c.id)}&kind=imgs" title="baixar imgs em zip">⬇ imgs.zip</a>`);
   if (c.videos.length) actions.push(`<a class="dl-zip" href="/zip?campaign=${encodeURIComponent(c.id)}&kind=videos" title="baixar vídeos em zip">⬇ vídeos.zip</a>`);
   if (c.gatilhos?.length) actions.push(`<a class="dl-zip" href="/zip?campaign=${encodeURIComponent(c.id)}&kind=gatilhos" title="baixar gatilhos em zip">⬇ gatilhos.zip</a>`);
+  if (c.viral?.length) actions.push(`<a class="dl-zip" href="/zip?campaign=${encodeURIComponent(c.id)}&kind=viral" title="baixar viral em zip">⬇ viral.zip</a>`);
 
   const briefBlock = c.brief
     ? `<p class="card-brief">${escapeHtml(c.brief)}</p>`
@@ -262,6 +264,7 @@ function campaignCard(c) {
         <span class="count-chip"><strong>${c.counts.imgs}</strong> imgs</span>
         <span class="count-chip"><strong>${c.counts.videos}</strong> vídeos</span>
         ${c.counts.gatilhos ? `<span class="count-chip"><strong>${c.counts.gatilhos}</strong> gatilhos</span>` : ''}
+        ${c.counts.viral ? `<span class="count-chip"><strong>${c.counts.viral}</strong> viral</span>` : ''}
         ${c.report ? `<span class="count-chip">ReportVd</span>` : ''}
         <span class="count-chip"><strong>${c.counts.logs}</strong> logs</span>
       </div>
@@ -460,6 +463,25 @@ function showGatilhos(campaignId, name) {
   openModal(`gatilhos (${c.gatilhos.length}) — ${name}`, `<div class="gat-grid">${html}</div>`);
 }
 
+function showViral(campaignId, name) {
+  const c = state.campaigns.find((x) => x.id === campaignId);
+  if (!c || !c.viral?.length) return;
+  const html = c.viral.map((v, vIdx) => {
+    const vid = v.videos[0];
+    const thumbsList = v.ads.slice(0, 5);
+    const key = `${campaignId}::viral::${vIdx}`;
+    registerLb(key, thumbsList);
+    const thumbs = thumbsList.map((_, i) => lbThumbHTML(thumbsList, i)).join('');
+    return `
+      <div class="gat-card">
+        <h4>${escapeHtml(v.slug)}</h4>
+        ${vid ? `<video controls preload="metadata" src="${vid.url}"></video>` : '<div class="empty-state" style="padding:20px">(sem vídeo)</div>'}
+        ${thumbs ? `<div class="gat-thumbs">${thumbs}</div>` : ''}
+      </div>`;
+  }).join('');
+  openModal(`viral (${c.viral.length}) — ${name}`, `<div class="gat-grid">${html}</div>`);
+}
+
 function showImages(campaignId, kind, name) {
   const c = state.campaigns.find((x) => x.id === campaignId);
   if (!c) return;
@@ -551,6 +573,8 @@ function bindEvents() {
       showImages(t.dataset.id, action, t.dataset.name);
     } else if (action === 'gatilhos') {
       showGatilhos(t.dataset.id, t.dataset.name);
+    } else if (action === 'viral') {
+      showViral(t.dataset.id, t.dataset.name);
     } else if (action === 'report') {
       showReport(t.dataset.id, t.dataset.name);
     } else if (action === 'vk-open') {

@@ -33,6 +33,8 @@ const { enqueueStage } = require('../pipeline/orchestrator');
     video_viral: true,
     music_enabled: false,
     captions_enabled: false,
+    viral_duration: 30,
+    video_template: 'viral',
     skip_research: true,
     skip_image: true,
     skip_video: false,
