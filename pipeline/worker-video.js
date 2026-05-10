@@ -13,9 +13,19 @@ const {
   validateNarrationFile,
 } = require('./video-audio');
 
-function attachExistingQuickNarration(projectRoot, output_dir, task_name, idx, log = () => {}) {
-  let planPath = path.resolve(projectRoot, output_dir, 'video', `${task_name}_video_${idx}_scene_plan.json`);
-  if (!fs.existsSync(planPath)) planPath = path.resolve(projectRoot, output_dir, 'video', `video_${idx}_scene_plan.json`);
+function quickPlanSuffix(variant) {
+  return variant === 'long' ? '_long_scene_plan.json' : '_scene_plan.json';
+}
+
+function quickAudioSuffix(variant) {
+  return variant === 'long' ? '_long_narration.mp3' : '_narration.mp3';
+}
+
+function attachExistingQuickNarration(projectRoot, output_dir, task_name, idx, log = () => {}, variant = 'short') {
+  const planSuffix = quickPlanSuffix(variant);
+  const audioSuffix = quickAudioSuffix(variant);
+  let planPath = path.resolve(projectRoot, output_dir, 'video', `${task_name}_video_${idx}${planSuffix}`);
+  if (!fs.existsSync(planPath)) planPath = path.resolve(projectRoot, output_dir, 'video', `video_${idx}${planSuffix}`);
   if (!fs.existsSync(planPath)) return false;
 
   let plan;
@@ -28,16 +38,18 @@ function attachExistingQuickNarration(projectRoot, output_dir, task_name, idx, l
   const currentNarration = plan.narration_file ? path.resolve(projectRoot, plan.narration_file) : null;
   if (currentNarration && fs.existsSync(currentNarration)) return false;
 
-  const candidates = [
-    `${output_dir}/audio/${task_name}_quick_${idx}_narration.mp3`,
-    `${output_dir}/audio/${task_name}_quick_narration.mp3`,
-  ];
+  const candidates = variant === 'long'
+    ? [`${output_dir}/audio/${task_name}_quick_${idx}${audioSuffix}`]
+    : [
+        `${output_dir}/audio/${task_name}_quick_${idx}_narration.mp3`,
+        `${output_dir}/audio/${task_name}_quick_narration.mp3`,
+      ];
   const reusable = candidates.find((relPath) => fs.existsSync(path.resolve(projectRoot, relPath)));
   if (!reusable) return false;
 
   plan.narration_file = reusable;
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2));
-  log(output_dir, 'video_quick', `Reusing existing narration for video ${idx}: ${reusable}`);
+  log(output_dir, 'video_quick', `Reusing existing narration for video ${idx} (${variant}): ${reusable}`);
   return true;
 }
 
@@ -50,9 +62,12 @@ function ensureQuickNarration({
   ttsProvider,
   log = () => {},
   execFile = execFileSync,
+  variant = 'short',
 }) {
-  let planPath = path.resolve(projectRoot, output_dir, 'video', `${task_name}_video_${idx}_scene_plan.json`);
-  if (!fs.existsSync(planPath)) planPath = path.resolve(projectRoot, output_dir, 'video', `video_${idx}_scene_plan.json`);
+  const planSuffix = quickPlanSuffix(variant);
+  const audioSuffix = quickAudioSuffix(variant);
+  let planPath = path.resolve(projectRoot, output_dir, 'video', `${task_name}_video_${idx}${planSuffix}`);
+  if (!fs.existsSync(planPath)) planPath = path.resolve(projectRoot, output_dir, 'video', `video_${idx}${planSuffix}`);
   if (!fs.existsSync(planPath)) {
     return { ok: false, reason: 'plan_missing', planPath: null };
   }
@@ -73,7 +88,7 @@ function ensureQuickNarration({
     return { ok: true, reason: 'existing_narration', planPath };
   }
 
-  const reused = attachExistingQuickNarration(projectRoot, output_dir, task_name, idx, log);
+  const reused = attachExistingQuickNarration(projectRoot, output_dir, task_name, idx, log, variant);
   if (reused) {
     return { ok: true, reason: 'reused_narration', planPath };
   }
@@ -93,7 +108,7 @@ function ensureQuickNarration({
     return { ok: false, reason: 'missing_tts_provider:auto', planPath };
   }
 
-  const relAudioPath = `${output_dir}/audio/${task_name}_quick_${idx}_narration.mp3`;
+  const relAudioPath = `${output_dir}/audio/${task_name}_quick_${idx}${audioSuffix}`;
   const absAudioPath = path.resolve(projectRoot, relAudioPath);
   try {
     const args = [
@@ -119,7 +134,7 @@ function ensureQuickNarration({
 
   plan.narration_file = relAudioPath;
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2));
-  log(output_dir, 'video_quick', `Generated narration for video ${idx}: ${relAudioPath}`);
+  log(output_dir, 'video_quick', `Generated narration for video ${idx} (${variant}): ${relAudioPath}`);
   return { ok: true, reason: 'generated_from_scene_narration', planPath };
 }
 
@@ -246,7 +261,17 @@ ${adImageList}
 ${audioInstructions}
 ${musicInstructions}
 
-STEP 3 — Create scene plan for EACH video. Save to ${output_dir}/video/${task_name}_video_0N_scene_plan.json:
+STEP 3 — Create TWO scene plans for EACH video — both variants share the same campaign narrative but differ in length and image usage:
+
+VARIANT A (SHORT — 5 content + CTA + hold):
+  Save to: ${output_dir}/video/${task_name}_video_0N_scene_plan.json
+
+VARIANT B (LONG — every available image as one scene + CTA + hold):
+  Save to: ${output_dir}/video/${task_name}_video_0N_long_scene_plan.json
+
+Both files use the SAME schema below — only scene count, image usage, and video_length differ.
+
+Schema:
 {
   "titulo": "short title",
   "video_length": 15,
@@ -279,21 +304,35 @@ STEP 3 — Create scene plan for EACH video. Save to ${output_dir}/video/${task_
   ]
 }
 
-RULES:
+RULES (apply to BOTH variants unless noted):
 - Use ONLY images from ads/ listed above — never generate or download new images
-- 5-7 scenes. Narration scenes total 10-17 seconds + FINAL 3s SILENT HOLD = 13-20s total
-- video_length MUST be 13-20 seconds (includes the silent hold)
 - These carousel/ad images may have text in the center/body area
-- Each scene uses a DIFFERENT image
+- Each scene uses a DIFFERENT image (no repeats within the same plan)
 - Motion: alternate between push-in, ken-burns-in, drift, breathe (never same 2x in a row)
 - Format: 9:16 (1080x1920) for Reels/Shorts/Stories
 - Every scene MUST have "narration" field with the exact transcript being spoken (or "" for silent)
 
-CTA + HOLD — MANDATORY CLOSING (read brand_identity.md for brand URL):
-- SECOND-TO-LAST scene: the CTA scene — MUST include the brand URL in text_overlay
+VARIANT A — SHORT specifics:
+- titulo: append " (curto)" so bot UI distinguishes variants
+- 5 content scenes + 1 CTA + 1 HOLD = 7 scenes total
+- video_length: 17-22 seconds (5 content × ~2.5-3s + CTA 3s + HOLD 3s)
+- The CTA scene MUST use the LAST image in the available list (the carousel that contains the brand URL/closing — typically named carousel_NN where NN is the highest index)
+- The 5 content scenes pick the strongest 5 images (usually the first 5 in narrative order)
+
+VARIANT B — LONG specifics:
+- titulo: append " (longo)" so bot UI distinguishes variants
+- ONE content scene per available image — use ALL ${adImages.length} images
+- Plus 1 CTA scene + 1 HOLD = (image_count + 2) scenes total
+- Each content scene: ~3.0-3.5s (narration tighter, 1-2 short phrases)
+- video_length: roughly (image_count × 3.2) + 6 seconds (CTA + hold)
+- The CTA scene uses the LAST image (same carousel as SHORT)
+- Same overall narrative arc as SHORT, but distributed across more scenes — each scene's narration is more focused
+
+CTA + HOLD — MANDATORY CLOSING (read brand_identity.md for brand URL — applies to BOTH variants):
+- SECOND-TO-LAST scene: the CTA scene — MUST use the LAST carousel image and include the brand URL in text_overlay
   Example for INEMA: text_overlay "INEMA.CLUB" or "ACESSE INEMA.CLUB"
   Duration: 3 seconds, narration must end with "Acesse [URL]"
-- LAST scene: SILENT HOLD — 3 seconds, narration: "" (empty), same CTA image
+- LAST scene: SILENT HOLD — 3 seconds, narration: "" (empty), SAME image as the CTA scene
   text_overlay: brand URL again (e.g. "INEMA.CLUB"), big and centered
   This gives viewers time to absorb the brand name
 - Total structure: hook → content → proof → CTA (3s with narration) → HOLD (3s silent)
@@ -348,79 +387,99 @@ After saving scene plans, print exactly: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
       const explicitNarration = existing_narration_file
         ? path.resolve(projectRoot, existing_narration_file)
         : null;
-      const planPath = path.resolve(projectRoot, output_dir, 'video', `${task_name}_video_${idx}_scene_plan.json`);
-      if (explicitNarration && fs.existsSync(planPath) && fs.existsSync(explicitNarration)) {
-        try {
-          const planData = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
-          planData.narration_file = path.relative(projectRoot, explicitNarration).replace(/\\/g, '/');
-          fs.writeFileSync(planPath, JSON.stringify(planData, null, 2));
-          log(output_dir, 'video_quick', `Reused existing narration for video ${idx}: ${planData.narration_file}`);
-        } catch (err) {
-          log(output_dir, 'video_quick', `Could not attach existing narration for video ${idx}: ${err.message}`);
+
+      for (const variant of ['short', 'long']) {
+        const planSuffix = variant === 'long' ? '_long_scene_plan.json' : '_scene_plan.json';
+        const outSuffix = variant === 'long' ? '_long' : '';
+        const planPath = path.resolve(projectRoot, output_dir, 'video', `${task_name}_video_${idx}${planSuffix}`);
+
+        if (!fs.existsSync(planPath)) {
+          if (variant === 'long') {
+            log(output_dir, 'video_quick', `Long plan not found for video ${idx} — skipping long variant (short still renders).`);
+            continue;
+          }
+          log(output_dir, 'video_quick', `Short plan not found for video ${idx}, skipping.`);
+          continue;
         }
-      }
-      const narrationStatus = video_audio === 'none'
-        ? { ok: true, reason: 'silent_mode', planPath: explicitNarration ? planPath : null }
-        : ensureQuickNarration({
-          projectRoot,
-          output_dir,
-          task_name,
-          idx,
-          narrator: job.data.narrator || 'rachel',
-          ttsProvider: tts_provider,
-          log,
-        });
-      const effectivePlanPath = narrationStatus.planPath || planPath;
-      if (!effectivePlanPath || !fs.existsSync(effectivePlanPath)) {
-        log(output_dir, 'video_quick', `Scene plan not found: video_${idx}, skipping.`);
-        continue;
-      }
 
-      if (!narrationStatus.ok) {
-        log(output_dir, 'video_quick', `Missing narration for video ${idx}; stopping quick render (${narrationStatus.reason}).`);
-        markAudioMissing(projectRoot, output_dir, narrationStatus.reason);
-        process.stdout.write(`[STAGE3_AUDIO_REQUIRED] ${output_dir} quick video_${idx} reason=${narrationStatus.reason}\n`);
-        process.stdout.write(`[VIDEO_QUICK_AUDIO_MISSING] ${output_dir} video_${idx}\n`);
-        return { status: 'failed', reason: `missing narration for quick video ${idx}: ${narrationStatus.reason}` };
-      }
-      if (video_audio === 'none') {
-        log(output_dir, 'video_quick', `Silent quick mode enabled for video ${idx}.`);
-      }
+        // Explicit narration_file from upstream attaches to SHORT only (legacy behavior).
+        if (variant === 'short' && explicitNarration && fs.existsSync(explicitNarration)) {
+          try {
+            const planData = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
+            planData.narration_file = path.relative(projectRoot, explicitNarration).replace(/\\/g, '/');
+            fs.writeFileSync(planPath, JSON.stringify(planData, null, 2));
+            log(output_dir, 'video_quick', `Reused existing narration for video ${idx}: ${planData.narration_file}`);
+          } catch (err) {
+            log(output_dir, 'video_quick', `Could not attach existing narration for video ${idx}: ${err.message}`);
+          }
+        }
 
-      const ts = videoTimestamp();
-      const videoOutput = path.resolve(projectRoot, output_dir, 'video', `${task_name}_quick_${idx}_${ts}.mp4`);
-      backupIfExists(videoOutput);
+        const narrationStatus = video_audio === 'none'
+          ? { ok: true, reason: 'silent_mode', planPath }
+          : ensureQuickNarration({
+            projectRoot,
+            output_dir,
+            task_name,
+            idx,
+            narrator: job.data.narrator || 'rachel',
+            ttsProvider: tts_provider,
+            log,
+            variant,
+          });
+        const effectivePlanPath = narrationStatus.planPath || planPath;
+        if (!effectivePlanPath || !fs.existsSync(effectivePlanPath)) {
+          log(output_dir, 'video_quick', `Scene plan not found: video_${idx} ${variant}, skipping.`);
+          continue;
+        }
 
-      if (job.data.image_bg_mode) {
-        try {
-          const planData = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
-          if (job.data.image_bg_mode) {
+        if (!narrationStatus.ok) {
+          log(output_dir, 'video_quick', `Missing narration for video ${idx} ${variant}; stopping render (${narrationStatus.reason}).`);
+          markAudioMissing(projectRoot, output_dir, narrationStatus.reason);
+          process.stdout.write(`[STAGE3_AUDIO_REQUIRED] ${output_dir} quick video_${idx}_${variant} reason=${narrationStatus.reason}\n`);
+          process.stdout.write(`[VIDEO_QUICK_AUDIO_MISSING] ${output_dir} video_${idx}_${variant}\n`);
+          // Long variant failures shouldn't block short — log and continue
+          if (variant === 'long') continue;
+          return { status: 'failed', reason: `missing narration for quick video ${idx}: ${narrationStatus.reason}` };
+        }
+        if (video_audio === 'none') {
+          log(output_dir, 'video_quick', `Silent quick mode enabled for video ${idx} (${variant}).`);
+        }
+
+        const ts = videoTimestamp();
+        const videoOutput = path.resolve(projectRoot, output_dir, 'video', `${task_name}_quick_${idx}${outSuffix}_${ts}.mp4`);
+        backupIfExists(videoOutput);
+
+        if (job.data.image_bg_mode) {
+          try {
+            const planData = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
             planData.image_bg_mode = job.data.image_bg_mode;
             fs.writeFileSync(planPath, JSON.stringify(planData, null, 2));
+          } catch (err) {
+            log(output_dir, 'video_quick', `Could not update quick scene plan ${idx} ${variant}: ${err.message}`);
+            if (variant === 'long') continue;
+            return { status: 'failed', reason: `invalid quick scene plan ${idx}` };
           }
-        } catch (err) {
-          log(output_dir, 'video_quick', `Could not update quick scene plan ${idx}: ${err.message}`);
-          return { status: 'failed', reason: `invalid quick scene plan ${idx}` };
         }
-      }
 
-      log(output_dir, 'video_quick', `Rendering video ${i}/${video_count}...`);
+        log(output_dir, 'video_quick', `Rendering video ${i}/${video_count} (${variant})...`);
 
-      try {
-        const renderScript = path.resolve(projectRoot, 'pipeline', 'render-video-ffmpeg.js');
-        execFileSync('node', [renderScript, planPath, videoOutput], {
-          cwd: projectRoot,
-          stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: 300000,
-        });
-        log(output_dir, 'video_quick', `Video ${i} rendered: ${videoOutput}`);
-      } catch (renderErr) {
-        const message = renderErr.message.slice(0, 200);
-        log(output_dir, 'video_quick', `Render failed: ${message}`);
-        if (/audio required/i.test(message)) {
-          markAudioMissing(projectRoot, output_dir, 'render_audio_missing');
+        try {
+          const renderScript = path.resolve(projectRoot, 'pipeline', 'render-video-ffmpeg.js');
+          execFileSync('node', [renderScript, planPath, videoOutput], {
+            cwd: projectRoot,
+            stdio: ['pipe', 'pipe', 'pipe'],
+            timeout: 600000,
+          });
+          log(output_dir, 'video_quick', `Video ${i} (${variant}) rendered: ${videoOutput}`);
+        } catch (renderErr) {
+          const message = renderErr.message.slice(0, 200);
+          log(output_dir, 'video_quick', `Render failed (${variant}): ${message}`);
+          if (/audio required/i.test(message)) {
+            markAudioMissing(projectRoot, output_dir, 'render_audio_missing');
+          }
+          if (variant === 'long') continue;
+          return { status: 'failed', reason: `render_failed:${message}` };
         }
-        return { status: 'failed', reason: `render_failed:${message}` };
       }
     }
 

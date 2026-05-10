@@ -1169,6 +1169,41 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
       }
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    // Phase 2.5: Re-generate narration to cover scene plan changes.
+    // Photography Director may add/expand scenes (esp. CTA + hold) after
+    // Phase 1 TTS already wrote narration.mp3. Without this, the final
+    // mp3 is shorter than the video and CTA/hold play muted.
+    // ─────────────────────────────────────────────────────────────────
+    if ((job.data.video_audio || 'narration') !== 'none') {
+      const generateAudioScript = path.resolve(projectRoot, 'pipeline', 'generate-audio.js');
+      const narratorVoice = job.data.narrator || 'rachel';
+      for (let i = 1; i <= video_count; i++) {
+        const idx = String(i).padStart(2, '0');
+        const planPath = vfFind(idx, '_scene_plan_motion.json');
+        if (!fs.existsSync(planPath)) continue;
+        try {
+          const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
+          const scenes = Array.isArray(plan.scenes) ? plan.scenes : [];
+          const narrationText = scenes
+            .map(s => String(s?.narration || '').trim())
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          if (!narrationText) continue;
+          const narPath = path.resolve(absAudioDir, `${task_name}_video_${idx}_narration.mp3`);
+          log(output_dir, 'video_pro', `Phase 2.5: Re-generating narration for video ${idx} (${narrationText.length} chars, ${scenes.length} scenes)...`);
+          const args = [generateAudioScript, narPath, narrationText, narratorVoice];
+          if (selectedTtsProvider) args.push('--provider', selectedTtsProvider);
+          execFileSync('node', args, { cwd: projectRoot, stdio: 'pipe', timeout: 300000 });
+          log(output_dir, 'video_pro', `Phase 2.5: narration regenerated → ${path.relative(projectRoot, narPath)}`);
+        } catch (e) {
+          log(output_dir, 'video_pro', `Phase 2.5 failed for video ${idx}: ${(e.message || '').slice(0, 200)}`);
+        }
+      }
+      await job.extendLock(job.token, 900000).catch(() => {});
+    }
+
     process.stdout.write(`[VIDEO_PRO_PROGRESS] ${output_dir} plan_ready\n`);
     const wantDraft = job.data.video_draft === true;
     if (wantDraft) {

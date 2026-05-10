@@ -376,7 +376,7 @@ function viralSlide(scene, p, bgImage, w, h) {
   const pillBg = palette[0] || '#C87941';
   const accentGold = palette[1] || '#F5C87A';
   const dark = palette[2] || '#1A1A2E';
-  const text = palette[3] || '#FFFFFF';
+  const text = '#FFFFFF';
   const pillText = (brand.pill_text || 'INEMA.CLUB').toUpperCase();
   const sceneIdx = typeof scene.scene_index === 'number' ? scene.scene_index : null;
   const sceneTotal = typeof scene.scene_total === 'number' ? scene.scene_total : null;
