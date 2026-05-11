@@ -62,10 +62,11 @@ RUN npx playwright install chromium
 # ── App code ─────────────────────────────────────────────────────────
 USER root
 COPY --chown=timesmkt:timesmkt . .
-USER timesmkt
 
-# Pastas que vão receber bind-mount (cria pra evitar permissão errada)
-RUN mkdir -p /app/prj /app/logs
+# Pastas que vão receber bind-mount + ownership de /app
+RUN mkdir -p /app/prj /app/logs && chown -R timesmkt:timesmkt /app
+
+USER timesmkt
 
 # ── Runtime defaults ─────────────────────────────────────────────────
 ENV NODE_ENV=production
