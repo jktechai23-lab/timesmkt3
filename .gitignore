@@ -39,5 +39,13 @@ remotion-ad/public/audio/
 remotion-ad/public/assets/
 tavily_results*.json
 
+# Manter README de estrutura visível no clone
+!prj/README.md
+
+# Demo INEMA: só knowledge/*.md (sem assets/outputs)
+!prj/inema/
+!prj/inema/knowledge/
+!prj/inema/knowledge/*.md
+
 # Logs locais (não versionar)
 logs/

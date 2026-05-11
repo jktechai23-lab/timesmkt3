@@ -1,0 +1,77 @@
+# ─────────────────────────────────────────────────────────────────────
+# timesmkt3 — stack completa em Docker.
+#
+# Serviços:
+#   redis    — fila BullMQ (named volume, não exposto pro host por default)
+#   bot      — Telegram bot (controlador do pipeline)
+#   worker   — BullMQ consumer (executa os agentes via Claude CLI)
+#   ui       — UI read-only em http://localhost:${TIMESMKT3_UI_PORT}
+#
+# Volumes:
+#   ./prj   → /app/prj   (campanhas, knowledge, outputs persistem fora do container)
+#   ./logs  → /app/logs  (logs do worker/bot)
+#   redis-data (named) → /data
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  bot:
+    build: .
+    image: timesmkt3:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./prj:/app/prj
+      - ./logs:/app/logs
+    command: ["node", "telegram/bot.js"]
+
+  worker:
+    image: timesmkt3:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+    depends_on:
+      redis:
+        condition: service_healthy
+      bot:
+        condition: service_started
+    volumes:
+      - ./prj:/app/prj
+      - ./logs:/app/logs
+    command: ["node", "pipeline/worker.js"]
+
+  ui:
+    image: timesmkt3:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - TIMESMKT3_UI_PORT=5177
+    depends_on:
+      - redis
+    ports:
+      - "${TIMESMKT3_UI_PORT:-5177}:5177"
+    volumes:
+      - ./prj:/app/prj
+      - ./logs:/app/logs
+    command: ["node", "ui/server.js"]
+
+volumes:
+  redis-data:
