@@ -70,9 +70,26 @@ A Claude CLI roteia tudo via OpenRouter. **Não é oficialmente testado** — po
 ./setup stop         docker compose down (volumes preservados)
 ./setup restart      stop + start
 ./setup logs [svc]   tail logs (bot|worker|ui|redis)
+./setup new <slug>   Cria novo projeto em prj/<slug>/ a partir do demo INEMA
 ./setup smoke        Roda campanha demo end-to-end — GASTA CRÉDITOS
 ./setup help
 ```
+
+## Criar novo projeto
+
+`prj/inema/knowledge/` vem como **demo** no repo (templates dos 3 MDs).
+
+Pra criar uma marca/cliente nova:
+
+```bash
+./setup new minha-marca
+# cria prj/minha-marca/{knowledge,assets/music} com os 3 MDs copiados do INEMA
+nano prj/minha-marca/knowledge/brand_identity.md     # edita pra sua marca
+nano prj/minha-marca/knowledge/product_campaign.md
+# (platform_guidelines.md geralmente é genérico — pode manter)
+```
+
+Slugs aceitos: letras minúsculas, números, hífen, underscore. Sem espaços ou acentos.
 
 ## Volumes e persistência
 
