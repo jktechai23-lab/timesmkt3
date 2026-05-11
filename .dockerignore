@@ -1,0 +1,49 @@
+# Build artifacts e deps locais (refazemos no container)
+node_modules
+remotion-ad/node_modules
+playwright-browsers
+
+# Lock file não vai (npm ci vai gerar do package.json)
+# Se quiser builds reproduzíveis, COMENTE a linha abaixo.
+package-lock.json
+
+# Outputs gerados — campanhas saem como volume, não vão na image
+prj/*/outputs
+prj/inema/revistas
+**/outputs/
+
+# Logs
+logs
+*.log
+.pm2
+
+# Git e dev
+.git
+.gitignore
+.github
+.vscode
+.idea
+.claude
+
+# Env files (chaves secretas — nunca dentro da image)
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Docker artifacts
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Setup
+setup
+doc/setup-docker.md
+
+# Sessões interativas
+.sessions.json

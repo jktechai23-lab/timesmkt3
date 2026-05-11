@@ -1,0 +1,351 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────
+# timesmkt3 — setup CLI.
+#
+#   ./setup doctor    → valida ambiente (não muda nada)
+#   ./setup full      → instala tudo (build + .env wizard + start)
+#   ./setup start     → docker compose up -d
+#   ./setup stop      → docker compose down
+#   ./setup restart   → docker compose restart
+#   ./setup logs [svc]→ docker compose logs -f [bot|worker|ui|redis]
+#   ./setup smoke     → opt-in: roda 1 campanha mínima end-to-end (gasta créditos)
+#   ./setup help      → mostra esta ajuda
+# ─────────────────────────────────────────────────────────────────────
+
+set -e
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
+
+C_RESET='\033[0m'
+C_RED='\033[0;31m'
+C_GREEN='\033[0;32m'
+C_YELLOW='\033[0;33m'
+C_BLUE='\033[0;34m'
+C_GREY='\033[0;90m'
+
+ok()     { echo -e "  ${C_GREEN}✓${C_RESET} $*"; }
+fail()   { echo -e "  ${C_RED}✗${C_RESET} $*"; }
+warn()   { echo -e "  ${C_YELLOW}!${C_RESET} $*"; }
+info()   { echo -e "  ${C_GREY}·${C_RESET} $*"; }
+header() { echo; echo -e "${C_BLUE}━━━ $* ━━━${C_RESET}"; }
+
+# ─────────────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────────────
+
+has_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+read_env_var() {
+  # imprime valor de variável do .env (vazio se não existir)
+  local name="$1"
+  [ -f .env ] || { echo ""; return; }
+  grep -E "^${name}=" .env 2>/dev/null | head -1 | cut -d= -f2- | sed 's/^"//;s/"$//'
+}
+
+http_check() {
+  # http_check <url> <expected_status_min> [auth_header]
+  local url="$1"; local expected="${2:-200}"; local auth="${3:-}"
+  local code
+  if [ -n "$auth" ]; then
+    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 -H "$auth" "$url" 2>/dev/null || echo "000")
+  else
+    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url" 2>/dev/null || echo "000")
+  fi
+  [ "$code" -ge "$expected" ] && [ "$code" -lt 500 ]
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# doctor — validação read-only
+# ─────────────────────────────────────────────────────────────────────
+
+cmd_doctor() {
+  local errors=0
+  local warnings=0
+
+  header "Sistema"
+  if has_cmd docker; then
+    ok "docker $(docker --version | awk '{print $3}' | tr -d ',')"
+  else
+    fail "docker não encontrado — instale: https://docs.docker.com/engine/install/"
+    errors=$((errors+1))
+  fi
+
+  if has_cmd "docker" && docker compose version >/dev/null 2>&1; then
+    ok "docker compose $(docker compose version --short)"
+  elif has_cmd docker-compose; then
+    warn "docker-compose v1 (legacy). Recomendado: 'docker compose' (v2)"
+    warnings=$((warnings+1))
+  else
+    fail "docker compose não encontrado — instale plugin compose"
+    errors=$((errors+1))
+  fi
+
+  if has_cmd curl; then ok "curl $(curl --version | head -1 | awk '{print $2}')"
+  else fail "curl não encontrado"; errors=$((errors+1)); fi
+
+  if has_cmd git; then ok "git $(git --version | awk '{print $3}')"
+  else warn "git não encontrado (não bloqueia)"; warnings=$((warnings+1)); fi
+
+  # Specs do host — recomendado mínimo
+  local cpu_count mem_total
+  cpu_count=$(nproc 2>/dev/null || echo "?")
+  mem_total=$(awk '/MemTotal/ {printf "%.1f", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo "?")
+  if [ "$cpu_count" != "?" ] && [ "$mem_total" != "?" ]; then
+    if (( cpu_count < 2 )); then
+      warn "host com $cpu_count vCPU — recomendado mínimo 2 (worker spawna chromium+ffmpeg)"
+      warnings=$((warnings+1))
+    elif (( $(echo "$mem_total < 4" | bc -l 2>/dev/null || echo 0) )); then
+      warn "host com ${mem_total}GB RAM — recomendado mínimo 4GB (ideal 6GB+)"
+      warnings=$((warnings+1))
+    else
+      ok "host: $cpu_count vCPU / ${mem_total}GB RAM"
+    fi
+  fi
+
+  header ".env"
+  if [ ! -f .env ]; then
+    fail ".env não existe — rode './setup full' pra criar"
+    errors=$((errors+1))
+  else
+    ok ".env existe"
+
+    local anth_key tav_key tg_token
+    anth_key=$(read_env_var ANTHROPIC_API_KEY)
+    tav_key=$(read_env_var TAVILY_API_KEY)
+    tg_token=$(read_env_var TELEGRAM_BOT_TOKEN)
+
+    if [ -z "$anth_key" ] || [ "$anth_key" = "YOUR_API_KEY" ]; then
+      fail "ANTHROPIC_API_KEY vazia (obrigatória pra Claude CLI no container)"
+      errors=$((errors+1))
+    else
+      ok "ANTHROPIC_API_KEY: ${anth_key:0:10}…"
+    fi
+
+    if [ -z "$tav_key" ] || [[ "$tav_key" == *"YOUR_API_KEY"* ]]; then
+      fail "TAVILY_API_KEY vazia (obrigatória pra research agent)"
+      errors=$((errors+1))
+    else
+      ok "TAVILY_API_KEY: ${tav_key:0:10}…"
+    fi
+
+    if [ -z "$tg_token" ] || [[ "$tg_token" == *"YOUR"* ]]; then
+      fail "TELEGRAM_BOT_TOKEN vazio (obrigatório pra controlar pipeline)"
+      errors=$((errors+1))
+    else
+      ok "TELEGRAM_BOT_TOKEN: ${tg_token:0:10}…"
+    fi
+
+    # TTS — pelo menos uma
+    local has_tts=0
+    for tts_var in ELEVENLABS_API_KEY FISH_AUDIO_API_KEY MINIMAX_API_KEY; do
+      v=$(read_env_var "$tts_var")
+      [ -n "$v" ] && has_tts=1
+    done
+    if [ "$has_tts" -eq 1 ]; then ok "TTS: ao menos um provider configurado"
+    else warn "Nenhum TTS configurado — vídeos com narração vão falhar"; warnings=$((warnings+1)); fi
+  fi
+
+  header "Conectividade APIs"
+  if [ -f .env ]; then
+    local anth_key anth_base tav_key tg_token
+    anth_key=$(read_env_var ANTHROPIC_API_KEY)
+    anth_base=$(read_env_var ANTHROPIC_BASE_URL)
+    [ -z "$anth_base" ] && anth_base="https://api.anthropic.com"
+    tav_key=$(read_env_var TAVILY_API_KEY)
+    tg_token=$(read_env_var TELEGRAM_BOT_TOKEN)
+
+    if [ -n "$anth_key" ]; then
+      if http_check "${anth_base}/v1/models" 200 "x-api-key: $anth_key"; then
+        ok "Anthropic API alcançável (${anth_base})"
+      else
+        fail "Anthropic API não respondeu OK em ${anth_base}/v1/models"
+        errors=$((errors+1))
+      fi
+    fi
+
+    if [ -n "$tav_key" ] && [[ "$tav_key" != *"YOUR"* ]]; then
+      if http_check "https://api.tavily.com" 200; then
+        ok "Tavily API alcançável"
+      else
+        warn "Tavily API não respondeu (pode ser rate limit do endpoint root)"
+        warnings=$((warnings+1))
+      fi
+    fi
+
+    if [ -n "$tg_token" ] && [[ "$tg_token" != *"YOUR"* ]]; then
+      if http_check "https://api.telegram.org/bot${tg_token}/getMe" 200; then
+        ok "Telegram bot autenticando"
+      else
+        fail "Telegram bot token inválido ou bloqueado"
+        errors=$((errors+1))
+      fi
+    fi
+  fi
+
+  header "Estrutura"
+  for d in prj pipeline telegram ui media skills; do
+    if [ -d "$d" ]; then ok "$d/ existe"
+    else fail "$d/ não existe"; errors=$((errors+1)); fi
+  done
+
+  if [ -f Dockerfile ] && [ -f docker-compose.yml ]; then
+    ok "Dockerfile + docker-compose.yml prontos"
+  else
+    fail "Dockerfile ou docker-compose.yml ausente"
+    errors=$((errors+1))
+  fi
+
+  header "Conflitos com PM2 local"
+  if has_cmd pm2 && pm2 list 2>/dev/null | grep -qE "online|stopped|errored"; then
+    warn "PM2 detectado com processos. Não rode './setup start' junto."
+    warn "Pra usar Docker: 'npx pm2 stop all' antes de 'setup start'."
+    warnings=$((warnings+1))
+  else
+    ok "PM2 não tem processos ativos (ou não instalado) — caminho livre"
+  fi
+
+  echo
+  if [ "$errors" -gt 0 ]; then
+    echo -e "${C_RED}${errors} erro(s) e ${warnings} warning(s).${C_RESET} Corrija os erros antes de 'setup start'."
+    return 1
+  elif [ "$warnings" -gt 0 ]; then
+    echo -e "${C_YELLOW}${warnings} warning(s).${C_RESET} Setup pode subir, mas revise."
+    return 0
+  else
+    echo -e "${C_GREEN}Tudo verde. Pode rodar './setup start'.${C_RESET}"
+    return 0
+  fi
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# full — wizard interativo + build + start
+# ─────────────────────────────────────────────────────────────────────
+
+cmd_full() {
+  header "1/4 — Pré-flight"
+  if ! has_cmd docker; then
+    echo "Docker não encontrado. Instale primeiro: https://docs.docker.com/engine/install/"
+    exit 1
+  fi
+  ok "docker disponível"
+
+  header "2/4 — .env"
+  if [ ! -f .env ]; then
+    if [ ! -f .env.example ]; then
+      echo "Não tem .env.example pra clonar. Abortando."
+      exit 1
+    fi
+    cp .env.example .env
+    ok ".env criado a partir de .env.example"
+    echo
+    echo "Abra o arquivo .env e preencha pelo menos:"
+    echo "  - ANTHROPIC_API_KEY"
+    echo "  - TAVILY_API_KEY"
+    echo "  - TELEGRAM_BOT_TOKEN"
+    echo "  - ELEVENLABS_API_KEY ou FISH_AUDIO_API_KEY"
+    echo
+    read -p "Pressione ENTER quando terminar de editar .env… "
+  else
+    ok ".env já existe"
+  fi
+
+  header "3/4 — Build da imagem"
+  docker compose build
+  ok "imagem timesmkt3:latest pronta"
+
+  header "4/4 — Validação final"
+  cmd_doctor || warn "Doctor reportou problemas — leia acima antes de subir."
+
+  echo
+  echo "Pra subir: ./setup start"
+  echo "Pra ver logs: ./setup logs"
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# start / stop / restart / logs
+# ─────────────────────────────────────────────────────────────────────
+
+cmd_start() {
+  header "Subindo serviços"
+  docker compose up -d
+  echo
+  docker compose ps
+  echo
+  local port
+  port=$(read_env_var TIMESMKT3_UI_PORT)
+  [ -z "$port" ] && port=5177
+  echo "UI: http://localhost:${port}"
+  echo "Logs: ./setup logs"
+}
+
+cmd_stop() {
+  header "Parando serviços"
+  docker compose down
+  ok "stack parada (volumes preservados)"
+}
+
+cmd_restart() {
+  cmd_stop
+  cmd_start
+}
+
+cmd_logs() {
+  local svc="${1:-}"
+  if [ -n "$svc" ]; then
+    docker compose logs -f --tail=200 "$svc"
+  else
+    docker compose logs -f --tail=100
+  fi
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# smoke — opt-in: roda 1 campanha real (gasta créditos!)
+# ─────────────────────────────────────────────────────────────────────
+
+cmd_smoke() {
+  header "Smoke test (gasta créditos de API)"
+  echo "Vai rodar pipeline:run com payload demo (Cold Brew Coffee Co.)."
+  read -p "Continuar? [y/N] " ans
+  [ "$ans" = "y" ] || [ "$ans" = "Y" ] || { echo "Cancelado."; exit 0; }
+
+  docker compose exec worker npm run pipeline:run
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# help
+# ─────────────────────────────────────────────────────────────────────
+
+cmd_help() {
+  cat <<EOF
+timesmkt3 setup
+
+Comandos:
+  ./setup doctor       Valida ambiente (read-only)
+  ./setup full         Build + .env wizard + doctor
+  ./setup start        Sobe serviços (docker compose up -d)
+  ./setup stop         Para serviços (docker compose down)
+  ./setup restart      Stop + start
+  ./setup logs [svc]   Tail dos logs (svc: bot, worker, ui, redis)
+  ./setup smoke        Roda 1 campanha demo end-to-end (gasta créditos)
+  ./setup help         Esta ajuda
+
+Veja doc/setup-docker.md pra detalhes.
+EOF
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# main
+# ─────────────────────────────────────────────────────────────────────
+
+case "${1:-help}" in
+  doctor)  cmd_doctor ;;
+  full)    cmd_full ;;
+  start)   cmd_start ;;
+  stop)    cmd_stop ;;
+  restart) cmd_restart ;;
+  logs)    cmd_logs "${2:-}" ;;
+  smoke)   cmd_smoke ;;
+  help|-h|--help) cmd_help ;;
+  *) echo "Comando desconhecido: $1"; cmd_help; exit 1 ;;
+esac
