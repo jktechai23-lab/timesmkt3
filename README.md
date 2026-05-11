@@ -63,6 +63,44 @@ UI fica em `http://<host>:5177`. Bot conecta no Telegram. Todos os comandos: `./
 
 **Demo INEMA bundled** — `prj/inema/knowledge/` vem no repo como template (3 MDs reais do INEMA.CLUB). `./setup new <slug>` copia esses 3 MDs pra seu novo projeto, aí você edita. Sem demo, agentes não sobem.
 
+### `.env` mínimo
+
+Quando `./setup full` pausar pra você editar `.env`, preencha pelo menos isto:
+
+```ini
+# ── OBRIGATÓRIAS ──
+ANTHROPIC_API_KEY=sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TELEGRAM_BOT_TOKEN=1234567890:AAH-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+TELEGRAM_ALLOWED_CHAT_IDS=123456789
+
+# ── TTS — pelo menos UMA das duas ──
+ELEVENLABS_API_KEY=sk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# FISH_AUDIO_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# ── Image gen (opcional, fallback gratuito) ──
+IMAGE_PROVIDER=brand           # ou: kie, pollinations, pexels
+# KIE_API_KEY=...              # se IMAGE_PROVIDER=kie
+# PEXELS_API_KEY=...           # stock photos grátis
+```
+
+| Variável | Onde pega |
+|---|---|
+| `ANTHROPIC_API_KEY` | https://console.anthropic.com/settings/keys |
+| `TAVILY_API_KEY` | https://tavily.com (free tier: 1k buscas/mês) |
+| `TELEGRAM_BOT_TOKEN` | @BotFather no Telegram → `/newbot` |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | Mande `/start` pro @userinfobot, pega o ID numérico |
+| `ELEVENLABS_API_KEY` | https://elevenlabs.io/app/settings/api-keys |
+| `FISH_AUDIO_API_KEY` | https://fish.audio/go-api/api-keys |
+| `KIE_API_KEY` (opcional) | https://kie.ai → API Keys |
+
+**Notas:**
+- `TELEGRAM_ALLOWED_CHAT_IDS` aceita lista: `123,456,789`. Outros chats são silenciosamente ignorados.
+- Se quiser **OpenRouter** em vez de Anthropic direto, adicione `ANTHROPIC_BASE_URL=https://openrouter.ai/api/v1` e use a chave do OpenRouter em `ANTHROPIC_API_KEY` (ver `doc/setup-docker.md` pros caveats).
+- Stages 4/5 (publicação Instagram/YouTube/etc) estão **desabilitados por default** — não precisa preencher essas chaves agora.
+
+`./setup doctor` valida o que está preenchido e pinga as APIs pra confirmar que as chaves funcionam.
+
 **Detalhes** (volumes, troubleshooting, recursos mínimos, OpenRouter opt-in, convivência com PM2 local): [`doc/setup-docker.md`](doc/setup-docker.md).
 
 ---
