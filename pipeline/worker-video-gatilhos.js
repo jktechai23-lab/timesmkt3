@@ -419,12 +419,13 @@ async function generateGatilhos(opts) {
     fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf-8');
 
     // Render video
-    const videoPath = path.join(hookDir, 'video.mp4');
+    const videoFilename = `${gNum}_${hookSlug}.mp4`;
+    const videoPath = path.join(hookDir, videoFilename);
     try {
       execFileSync('node', [renderScript, planPath, videoPath], {
         cwd: projectRoot, stdio: 'pipe', timeout: 120000,
       });
-      log(outputDir, 'video_pro', `  Video rendered: ${path.basename(hookDir)}/video.mp4`);
+      log(outputDir, 'video_pro', `  Video rendered: ${path.basename(hookDir)}/${videoFilename}`);
       completed++;
     } catch (e) {
       log(outputDir, 'video_pro', `  Video render failed: ${e.message.slice(0, 150)}`);

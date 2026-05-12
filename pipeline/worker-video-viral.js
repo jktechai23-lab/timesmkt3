@@ -805,12 +805,13 @@ async function generateViral(opts) {
     fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf-8');
 
     // ── Render video ──
-    const videoPath = path.join(itemDir, 'video.mp4');
+    const videoFilename = `${vNum}_${hookSlug}.mp4`;
+    const videoPath = path.join(itemDir, videoFilename);
     try {
       execFileSync('node', [renderScript, planPath, videoPath], {
         cwd: projectRoot, stdio: 'pipe', timeout: 120000,
       });
-      log(outputDir, 'video_viral', `  Video rendered: ${path.basename(itemDir)}/video.mp4`);
+      log(outputDir, 'video_viral', `  Video rendered: ${path.basename(itemDir)}/${videoFilename}`);
       completed += 1;
       metaItems.push({
         id: vNum,

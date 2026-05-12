@@ -242,9 +242,10 @@ function processImport(campaignFolder, campaignDir, importDir, source, modifier)
       const fullName = `${shortName}_${gNormalized}_${slugMatch}`;
 
       if (!modifier || modifier === 'videos') {
-        const videoSrc = path.join(hookPath, 'video.mp4');
-        if (fs.existsSync(videoSrc)) {
-          copyFile(videoSrc, path.join(importDir, 'videos', `${fullName}.mp4`));
+        const mp4s = fs.readdirSync(hookPath).filter(f => f.endsWith('.mp4'));
+        const videoFile = mp4s.includes('video.mp4') ? 'video.mp4' : mp4s[0];
+        if (videoFile) {
+          copyFile(path.join(hookPath, videoFile), path.join(importDir, 'videos', `${fullName}.mp4`));
           count++;
         }
       }
