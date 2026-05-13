@@ -805,7 +805,7 @@ async function generateViral(opts) {
     fs.writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf-8');
 
     // ── Render video ──
-    const videoFilename = `${vNum}_${hookSlug}.mp4`;
+    const videoFilename = `${taskName}_${vNum}_${hookSlug}.mp4`;
     const videoPath = path.join(itemDir, videoFilename);
     try {
       execFileSync('node', [renderScript, planPath, videoPath], {
