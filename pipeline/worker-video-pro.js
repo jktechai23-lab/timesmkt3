@@ -1170,38 +1170,93 @@ Then print: [VIDEO_APPROVAL_NEEDED] ${output_dir}`;
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // Phase 2.5: Re-generate narration to cover scene plan changes.
-    // Photography Director may add/expand scenes (esp. CTA + hold) after
-    // Phase 1 TTS already wrote narration.mp3. Without this, the final
-    // mp3 is shorter than the video and CTA/hold play muted.
+    // Phase 2.5: TTS-per-scene + duration sync.
+    // Generates ONE MP3 per scene, measures real duration via ffprobe,
+    // overwrites scene.duration with the actual TTS length, then concats
+    // everything into the final narration.mp3. This guarantees slide
+    // transitions align with what the voice is actually saying — no more
+    // proportional scaling drift in the renderer.
+    // Silent scenes (no narration, e.g. closing hold) get a silence mp3
+    // at the planned duration so the slide still appears for that long.
     // ─────────────────────────────────────────────────────────────────
     if ((job.data.video_audio || 'narration') !== 'none') {
       const generateAudioScript = path.resolve(projectRoot, 'pipeline', 'generate-audio.js');
       const narratorVoice = job.data.narrator || 'rachel';
+      const HOLD_MIN_SEC = 0.6;
+
       for (let i = 1; i <= video_count; i++) {
         const idx = String(i).padStart(2, '0');
         const planPath = vfFind(idx, '_scene_plan_motion.json');
         if (!fs.existsSync(planPath)) continue;
+
         try {
           const plan = JSON.parse(fs.readFileSync(planPath, 'utf-8'));
           const scenes = Array.isArray(plan.scenes) ? plan.scenes : [];
-          const narrationText = scenes
-            .map(s => String(s?.narration || '').trim())
-            .filter(Boolean)
-            .join(' ')
-            .trim();
-          if (!narrationText) continue;
+          if (!scenes.length) continue;
+
+          log(output_dir, 'video_pro', `Phase 2.5: TTS-per-scene for video ${idx} (${scenes.length} scenes)...`);
+
+          const scenesAudioDir = path.resolve(absAudioDir, `scenes_${idx}`);
+          fs.mkdirSync(scenesAudioDir, { recursive: true });
+
+          const sceneAudioPaths = [];
+          for (let si = 0; si < scenes.length; si++) {
+            const scene = scenes[si];
+            const sceneNum = String(si + 1).padStart(2, '0');
+            const scenePath = path.resolve(scenesAudioDir, `scene_${sceneNum}.mp3`);
+            const narration = String(scene.narration || '').trim();
+            const plannedDur = Math.max(parseFloat(scene.duration) || 1, HOLD_MIN_SEC);
+
+            if (narration) {
+              const args = [generateAudioScript, scenePath, narration, narratorVoice];
+              if (selectedTtsProvider) args.push('--provider', selectedTtsProvider);
+              execFileSync('node', args, { cwd: projectRoot, stdio: 'pipe', timeout: 120000 });
+
+              let realDur = plannedDur;
+              try {
+                const probe = execFileSync('ffprobe', [
+                  '-v', 'quiet', '-show_entries', 'format=duration',
+                  '-of', 'csv=p=0', scenePath,
+                ], { encoding: 'utf-8', timeout: 10000 }).trim();
+                realDur = parseFloat(probe) || plannedDur;
+              } catch {}
+              scene.duration = parseFloat(realDur.toFixed(2));
+            } else {
+              try {
+                execFileSync('ffmpeg', [
+                  '-y', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+                  '-t', String(plannedDur),
+                  '-c:a', 'libmp3lame', '-b:a', '128k',
+                  scenePath,
+                ], { stdio: 'pipe', timeout: 30000 });
+              } catch (e) {
+                log(output_dir, 'video_pro', `  silence gen failed scene ${sceneNum}: ${(e.message || '').slice(0, 100)}`);
+              }
+              scene.duration = parseFloat(plannedDur.toFixed(2));
+            }
+            sceneAudioPaths.push(scenePath);
+          }
+
+          const concatList = path.resolve(scenesAudioDir, 'concat.txt');
+          fs.writeFileSync(
+            concatList,
+            sceneAudioPaths.map(p => `file '${p.replace(/'/g, "'\\''")}'`).join('\n'),
+          );
           const narPath = path.resolve(absAudioDir, `${task_name}_video_${idx}_narration.mp3`);
-          log(output_dir, 'video_pro', `Phase 2.5: Re-generating narration for video ${idx} (${narrationText.length} chars, ${scenes.length} scenes)...`);
-          const args = [generateAudioScript, narPath, narrationText, narratorVoice];
-          if (selectedTtsProvider) args.push('--provider', selectedTtsProvider);
-          execFileSync('node', args, { cwd: projectRoot, stdio: 'pipe', timeout: 300000 });
-          log(output_dir, 'video_pro', `Phase 2.5: narration regenerated → ${path.relative(projectRoot, narPath)}`);
+          execFileSync('ffmpeg', [
+            '-y', '-f', 'concat', '-safe', '0', '-i', concatList,
+            '-c:a', 'libmp3lame', '-b:a', '128k', narPath,
+          ], { stdio: 'pipe', timeout: 60000 });
+
+          fs.writeFileSync(planPath, JSON.stringify(plan, null, 2));
+
+          const totalDur = scenes.reduce((s, sc) => s + (parseFloat(sc.duration) || 0), 0);
+          log(output_dir, 'video_pro', `Phase 2.5 done: video ${idx} → narration ${totalDur.toFixed(1)}s, ${scenes.length} cenas sincronizadas`);
         } catch (e) {
           log(output_dir, 'video_pro', `Phase 2.5 failed for video ${idx}: ${(e.message || '').slice(0, 200)}`);
         }
+        await job.extendLock(job.token, 900000).catch(() => {});
       }
-      await job.extendLock(job.token, 900000).catch(() => {});
     }
 
     process.stdout.write(`[VIDEO_PRO_PROGRESS] ${output_dir} plan_ready\n`);

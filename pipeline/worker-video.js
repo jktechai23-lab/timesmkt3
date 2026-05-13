@@ -93,11 +93,12 @@ function ensureQuickNarration({
     return { ok: true, reason: 'reused_narration', planPath };
   }
 
-  const script = (plan.scenes || [])
-    .map((scene) => String(scene?.narration || '').trim())
-    .filter(Boolean)
-    .join(' ');
-  if (!script) {
+  const scenes = Array.isArray(plan.scenes) ? plan.scenes : [];
+  if (!scenes.length) {
+    return { ok: false, reason: 'missing_script', planPath };
+  }
+  const hasAnyNarration = scenes.some(s => String(s?.narration || '').trim());
+  if (!hasAnyNarration) {
     return { ok: false, reason: 'missing_script', planPath };
   }
   const selectedProvider = normalizeTtsProvider(ttsProvider);
@@ -110,21 +111,61 @@ function ensureQuickNarration({
 
   const relAudioPath = `${output_dir}/audio/${task_name}_quick_${idx}${audioSuffix}`;
   const absAudioPath = path.resolve(projectRoot, relAudioPath);
+  const HOLD_MIN_SEC = 0.6;
+  const generateAudioScript = path.resolve(projectRoot, 'pipeline', 'generate-audio.js');
+  const scenesAudioDir = path.resolve(projectRoot, output_dir, 'audio', `quick_${idx}_${variant}_scenes`);
+  fs.mkdirSync(scenesAudioDir, { recursive: true });
+
+  const sceneAudioPaths = [];
   try {
-    const args = [
-      path.resolve(projectRoot, 'pipeline', 'generate-audio.js'),
-      absAudioPath,
-      script,
-      narrator || 'rachel',
-    ];
-    if (selectedProvider) args.push('--provider', selectedProvider);
-    execFile('node', args, {
-      cwd: projectRoot,
-      stdio: 'pipe',
-      timeout: 180000,
-    });
+    for (let si = 0; si < scenes.length; si++) {
+      const scene = scenes[si];
+      const sceneNum = String(si + 1).padStart(2, '0');
+      const scenePath = path.resolve(scenesAudioDir, `scene_${sceneNum}.mp3`);
+      const narration = String(scene.narration || '').trim();
+      const plannedDur = Math.max(parseFloat(scene.duration) || 1, HOLD_MIN_SEC);
+
+      if (narration) {
+        const args = [generateAudioScript, scenePath, narration, narrator || 'rachel'];
+        if (selectedProvider) args.push('--provider', selectedProvider);
+        execFile('node', args, { cwd: projectRoot, stdio: 'pipe', timeout: 120000 });
+
+        let realDur = plannedDur;
+        try {
+          const probe = execFileSync('ffprobe', [
+            '-v', 'quiet', '-show_entries', 'format=duration',
+            '-of', 'csv=p=0', scenePath,
+          ], { encoding: 'utf-8', timeout: 10000 }).trim();
+          realDur = parseFloat(probe) || plannedDur;
+        } catch {}
+        scene.duration = parseFloat(realDur.toFixed(2));
+      } else {
+        execFileSync('ffmpeg', [
+          '-y', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+          '-t', String(plannedDur),
+          '-c:a', 'libmp3lame', '-b:a', '128k',
+          scenePath,
+        ], { stdio: 'pipe', timeout: 30000 });
+        scene.duration = parseFloat(plannedDur.toFixed(2));
+      }
+      sceneAudioPaths.push(scenePath);
+    }
   } catch (err) {
     return { ok: false, reason: `tts_failed:${err.message}`, planPath };
+  }
+
+  try {
+    const concatList = path.resolve(scenesAudioDir, 'concat.txt');
+    fs.writeFileSync(
+      concatList,
+      sceneAudioPaths.map(p => `file '${p.replace(/'/g, "'\\''")}'`).join('\n'),
+    );
+    execFileSync('ffmpeg', [
+      '-y', '-f', 'concat', '-safe', '0', '-i', concatList,
+      '-c:a', 'libmp3lame', '-b:a', '128k', absAudioPath,
+    ], { stdio: 'pipe', timeout: 60000 });
+  } catch (err) {
+    return { ok: false, reason: `concat_failed:${err.message}`, planPath };
   }
 
   const validation = validateNarrationFile(absAudioPath);
@@ -134,7 +175,8 @@ function ensureQuickNarration({
 
   plan.narration_file = relAudioPath;
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2));
-  log(output_dir, 'video_quick', `Generated narration for video ${idx} (${variant}): ${relAudioPath}`);
+  const totalDur = scenes.reduce((s, sc) => s + (parseFloat(sc.duration) || 0), 0);
+  log(output_dir, 'video_quick', `Generated narration for video ${idx} (${variant}): ${scenes.length} cenas, ${totalDur.toFixed(1)}s sync`);
   return { ok: true, reason: 'generated_from_scene_narration', planPath };
 }
 
@@ -319,14 +361,16 @@ VARIANT A — SHORT specifics:
 - The CTA scene MUST use the LAST image in the available list (the carousel that contains the brand URL/closing — typically named carousel_NN where NN is the highest index)
 - The 5 content scenes pick the strongest 5 images (usually the first 5 in narrative order)
 
-VARIANT B — LONG specifics:
+VARIANT B — LONG specifics (only generate if there are MORE than 5 images available):
 - titulo: append " (longo)" so bot UI distinguishes variants
 - ONE content scene per available image — use ALL ${adImages.length} images
 - Plus 1 CTA scene + 1 HOLD = (image_count + 2) scenes total
-- Each content scene: ~3.0-3.5s (narration tighter, 1-2 short phrases)
-- video_length: roughly (image_count × 3.2) + 6 seconds (CTA + hold)
+- HARD CAP: video_length MUST be ≤ 60 seconds total. Compute per-scene duration as (60 - 6) / image_count, floor at 1.5s, cap at 3.5s
+- Each content scene: 1.5-3.5s (narration tighter, 1 short phrase per scene)
+- video_length: min(60, image_count × scene_dur + 6) — never exceed 60s
 - The CTA scene uses the LAST image (same carousel as SHORT)
 - Same overall narrative arc as SHORT, but distributed across more scenes — each scene's narration is more focused
+- If there are 5 or fewer images available, DO NOT generate the long variant — only short
 
 CTA + HOLD — MANDATORY CLOSING (read brand_identity.md for brand URL — applies to BOTH variants):
 - SECOND-TO-LAST scene: the CTA scene — MUST use the LAST carousel image and include the brand URL in text_overlay
